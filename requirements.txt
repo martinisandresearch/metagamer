@@ -1,5 +1,6 @@
 gym
 numpy
+tabulate
 
 # dev
 pytest
