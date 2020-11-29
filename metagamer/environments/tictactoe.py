@@ -28,7 +28,7 @@ def check_win(board: np.array) -> int:
     """
     Given a 3*3 numpy array whose elements are 0, 1, -1
     representing empty, player1 and player 2,
-    return the winner or the
+    return the player who's won if any or 0 if no winner found
 
     Args:
         board (np.array): 3 x 3 board
@@ -69,7 +69,7 @@ def to_one_hot(board: np.array) -> np.array:
 
     Returns:
         3 x 3 x 3:
-            board[:,: 0] = location of empty squares
+            board[:, :  0] = location of empty squares
             board[:, :, 1] = location of player 1
             board[:, :, 2] = location of player 2 moves
 
@@ -88,7 +88,9 @@ def to_human(board: np.array) -> np.array:
 
 class TicTacToeEnv(gym.Env):
     """
-    TicTacToe
+    TicTacToe environment in the openai gym style
+
+    This doesn't support observation_space but we can adapt that later
 
     """
 
@@ -110,13 +112,23 @@ class TicTacToeEnv(gym.Env):
 
         self.reset()
 
-    def reset(self):
+    def reset(self) -> np.array:
         self.board = np.zeros(self.board_shape, dtype=int)
         self.turn_iterator = turn_iterator(self.TURN_ORDER)
         self.curr_turn = next(self.turn_iterator)
         self.done = False
+        return self._get_obs()
 
-    def _get_obs(self):
+    def _get_obs(self) -> np.array:
+        """
+        Abstracted the observation from the underlying state though in this case they're
+        identical. This is useful if doing something like changing the underlying state
+        or converting to one hot encoding
+
+        Returns:
+            np.array of 3x3 representing the board in it's default state
+
+        """
         return self.board
 
     def step(
@@ -128,7 +140,7 @@ class TicTacToeEnv(gym.Env):
         if self.done:
             raise error.ResetNeeded("Call reset as game is over")
 
-        logger.debug("Selected action: %s", action)
+        logger.debug("Selected action: %s on turn %d", action, self.turns_played + 1)
 
         self.board[action] = self.curr_turn
 
@@ -150,7 +162,7 @@ class TicTacToeEnv(gym.Env):
         return [tuple(act) for act in np.argwhere(self.board == 0).tolist()]
 
     @property
-    def turns_played(self):
+    def turns_played(self) -> int:
         return np.sum(self.board != 0)
 
     def render(self, mode="human"):

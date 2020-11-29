@@ -32,7 +32,9 @@ def test_simple_game(tt):
 def test_diagonal(player):
     board = np.zeros((3, 3))
     board[0, 0] = player
+    assert tictactoe.check_win(board) == 0
     board[1, 1] = player
+    assert tictactoe.check_win(board) == 0
     board[2, 2] = player
     assert tictactoe.check_win(board) == player
 
@@ -41,7 +43,9 @@ def test_diagonal(player):
 def test_rev_diagonal(player):
     board = np.zeros((3, 3))
     board[0, 2] = player
+    assert tictactoe.check_win(board) == 0
     board[1, 1] = player
+    assert tictactoe.check_win(board) == 0
     board[2, 0] = player
     assert tictactoe.check_win(board) == player
 
