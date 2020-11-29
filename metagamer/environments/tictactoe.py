@@ -1,5 +1,9 @@
 """
-Thie file provides a simple
+This file provides some simple tools to simulate and work with a tic tac toe board.
+The functions provided assume the board is represented by
+    - np array of shape 3,3
+    - player 1 is 1, player 2 is -1 and empty is 0
+
 
 """
 import logging
@@ -8,12 +12,13 @@ import numpy as np
 import gym
 from gym import spaces, error
 
-from typing import Iterable, Any, Tuple, Dict, List, Optional
+from typing import Iterable, Any, Tuple, Dict, List, Optional, Iterator
 
 logger = logging.getLogger(__name__)
 
 
-def turn_iterator(turn_order: Iterable[Any]):
+def turn_iterator(turn_order: Iterable[Any]) -> Iterator[Any]:
+    """Infinitely iterates through the order provided"""
     while True:
         for turn in turn_order:
             yield turn
@@ -74,9 +79,10 @@ def to_one_hot(board: np.array) -> np.array:
 
 
 def to_human(board: np.array) -> np.array:
-    human_board = np.full(board.shape, '')
-    human_board[np.where(board == 1)] = 'X'
-    human_board[np.where(board == -1)] = 'O'
+    """Convert this into a """
+    human_board = np.full(board.shape, " ")
+    human_board[np.where(board == 1)] = "X"
+    human_board[np.where(board == -1)] = "O"
     return human_board
 
 
@@ -94,6 +100,8 @@ class TicTacToeEnv(gym.Env):
         self.board_shape = 3, 3
         self.symbols = {1: "X", -1: "O"}
         self.action_space = spaces.Tuple([spaces.Discrete(3), spaces.Discrete(3)])
+        # we don't support this right now
+        self.observation_space = None
 
         self.board = None
         self.turn_iterator = None
@@ -111,38 +119,45 @@ class TicTacToeEnv(gym.Env):
     def _get_obs(self):
         return self.board
 
-    def step(self, action: Tuple[int, int], player:Optional[int]=None) -> Tuple[Any, float, bool, Dict]:
+    def step(
+        self, action: Tuple[int, int], player: Optional[int] = None
+    ) -> Tuple[Any, float, bool, Dict]:
         action = tuple(action)
         if self.board[action] != 0:
             raise error.InvalidAction(f"action {action} is not a vaid choice")
         if not self.done:
             error.ResetNeeded("Call reset as game is over")
 
+        logger.debug("Selected action: %s", action)
+
         self.board[action] = self.curr_turn
 
-        reward = self.check_win()
+        reward = check_win(self.board)
         if reward:
             self.done = True
             return self._get_obs(), float(reward), self.done, {}
 
+        if self.turns_played == 9:
+            # draw
+            self.done = True
+            return self._get_obs(), 0.0, self.done, {}
+
         self.curr_turn = next(self.turn_iterator)
-
         return self._get_obs(), 0.0, self.done, {}
-
-    def check_win(self) -> int:
-        return check_win(self.board)
 
     @property
     def valid_actions(self) -> List[Tuple[int, int]]:
-        return np.argwhere(self.board == 0).tolist()
+        return [tuple(act) for act in np.argwhere(self.board == 0).tolist()]
 
     @property
     def turns_played(self):
         return np.sum(self.board != 0)
 
-    def render(self, mode='human'):
-        from tabulate import tabulate
+    def render(self, mode="human"):
+        import tabulate
+        tabulate.PRESERVE_WHITESPACE = True
+
         human_board = to_human(self.board)
         print("\n")
         print(f"Turn : {self.turns_played}")
-        print(tabulate(human_board.tolist(), tablefmt='fancy_grid'))
+        print(tabulate.tabulate(human_board.tolist(), tablefmt="fancy_grid"))
