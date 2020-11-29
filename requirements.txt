@@ -4,3 +4,4 @@ tabulate
 
 # dev
 pytest
+pytest-cov

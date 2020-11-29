@@ -125,8 +125,8 @@ class TicTacToeEnv(gym.Env):
         action = tuple(action)
         if self.board[action] != 0:
             raise error.InvalidAction(f"action {action} is not a vaid choice")
-        if not self.done:
-            error.ResetNeeded("Call reset as game is over")
+        if self.done:
+            raise error.ResetNeeded("Call reset as game is over")
 
         logger.debug("Selected action: %s", action)
 
