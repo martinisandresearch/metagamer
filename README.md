@@ -7,3 +7,5 @@
 This project is based on the idea of using AI to learn strategies in games.
 
 The intention to to model more real world problems, but as a starting point, we're going to work with simple games such as TicTacToe or Connect4 before moving into more complex domains.
+
+More to come
