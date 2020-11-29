@@ -88,11 +88,3 @@ Turn : 2
 │   │ O │   │
 ╘═══╧═══╧═══╛
 """
-
-
-def test_f(tt):
-    tt.step((0,0))
-    tt.step((2,1))
-
-    tt.render()
-    assert False
