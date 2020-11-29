@@ -66,7 +66,9 @@ def test_render(tt, capsys):
     tt.step((0, 0))
     tt.render()
     captured = capsys.readouterr()
-    assert captured.out == """
+    assert (
+        captured.out
+        == """
 
 Turn : 1
 ╒═══╤═══╤═══╕
@@ -77,11 +79,14 @@ Turn : 1
 │   │   │   │
 ╘═══╧═══╧═══╛
 """
+    )
 
     tt.step((2, 1))
     tt.render()
     captured = capsys.readouterr()
-    assert captured.out == """
+    assert (
+        captured.out
+        == """
 
 Turn : 2
 ╒═══╤═══╤═══╕
@@ -92,3 +97,4 @@ Turn : 2
 │   │ O │   │
 ╘═══╧═══╧═══╛
 """
+    )

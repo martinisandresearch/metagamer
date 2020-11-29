@@ -167,6 +167,7 @@ class TicTacToeEnv(gym.Env):
 
     def render(self, mode="human"):
         import tabulate
+
         tabulate.PRESERVE_WHITESPACE = True
 
         human_board = to_human(self.board)
