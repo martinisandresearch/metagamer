@@ -1,190 +1,148 @@
 """
-Original implementation provided by https://github.com/haje01/gym-tictactoe
+Thie file provides a simple
+
 """
 import logging
 
 import numpy as np
 import gym
-from gym import spaces
+from gym import spaces, error
 
-from typing import Tuple
-
-CODE_MARK_MAP = {0: " ", 1: "O", -1: "X"}
-NUM_LOC = 9
-O_REWARD = 1
-X_REWARD = -1
-NO_REWARD = 0
-
-LEFT_PAD = "  "
+from typing import Iterable, Any, Tuple, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def tomark(code):
-    return CODE_MARK_MAP[code]
+def turn_iterator(turn_order: Iterable[Any]):
+    while True:
+        for turn in turn_order:
+            yield turn
 
 
-def tocode(mark):
-    return 1 if mark == "O" else -1
-
-
-def next_mark(mark):
-    return "X" if mark == "O" else "O"
-
-
-def agent_by_mark(agents, mark):
-    for agent in agents:
-        if agent.mark == mark:
-            return agent
-
-
-def after_action_state(state, action):
-    """Execute an action and returns resulted state.
+def check_win(board: np.array) -> int:
+    """
+    Given a 3*3 numpy array whose elements are 0, 1, -1
+    representing empty, player1 and player 2,
+    return the winner or the
 
     Args:
-        state (tuple): Board status + mark
-        action (int): Action to run
+        board (np.array): 3 x 3 board
 
     Returns:
-        tuple: New state
+        int: 0  -> no winner
+             1  -> player 1
+             -1 -> player 2
+
     """
-
-    board, mark = state
-    nboard = list(board[:])
-    nboard[action] = tocode(mark)
-    nboard = tuple(nboard)
-    return nboard, next_mark(mark)
-
-
-def check_game_status(board):
-    """Return game status by current board status.
-
-    Args:
-        board (list): Current board state
-
-    Returns:
-        int:
-            -1: game in progress
-            0: draw game,
-            1 or 2 for finished game(winner mark code).
-    """
-    for t in [1, 2]:
-        for j in range(0, 9, 3):
-            if [t] * 3 == [board[i] for i in range(j, j + 3)]:
-                return t
-        for j in range(0, 3):
-            if board[j] == t and board[j + 3] == t and board[j + 6] == t:
-                return t
-        if board[0] == t and board[4] == t and board[8] == t:
-            return t
-        if board[2] == t and board[4] == t and board[6] == t:
-            return t
-
-    for i in range(9):
-        if board[i] == 0:
-            # still playing
+    assert board.shape == (3, 3)
+    for axis in [0, 1]:
+        axis_sum = board.sum(axis=axis)
+        if 3 in axis_sum:
+            return 1
+        elif -3 in axis_sum:
             return -1
 
-    # draw game
+    diag = board.diagonal().sum()
+    diag_inv = np.fliplr(board).diagonal().sum()
+    for diag_sum in [diag, diag_inv]:
+        if diag_sum == 3:
+            return 1
+        elif diag_sum == -3:
+            return -1
+
+    # no winner yet
     return 0
 
 
+def to_one_hot(board: np.array) -> np.array:
+    """
+    Convert the representation to one hot encoding
+    We assume a 3x3 board input
+
+    Args:
+        board (np.array): 3 x 3
+
+    Returns:
+        3 x 3 x 3:
+            board[:,: 0] = location of empty squares
+            board[:, :, 1] = location of player 1
+            board[:, :, 2] = location of player 2 moves
+
+    """
+    oh = np.stack((board == 0, board == 1, board == -1))
+    return oh.shape.astype(int)
+
+
+def to_human(board: np.array) -> np.array:
+    human_board = np.full(board.shape, '')
+    human_board[np.where(board == 1)] = 'X'
+    human_board[np.where(board == -1)] = 'O'
+    return human_board
+
+
 class TicTacToeEnv(gym.Env):
+    """
+    TicTacToe
+
+    """
+
     metadata = {"render.modes": ["human"]}
 
+    TURN_ORDER = [1, -1]
+
     def __init__(self):
-        self.action_space = spaces.Discrete(NUM_LOC)
-        self.observation_space = spaces.Discrete(NUM_LOC)
-        self.seed()
+        self.board_shape = 3, 3
+        self.symbols = {1: "X", -1: "O"}
+        self.action_space = spaces.Tuple([spaces.Discrete(3), spaces.Discrete(3)])
+
+        self.board = None
+        self.turn_iterator = None
+        self.curr_turn = None
+        self.done = None
+
         self.reset()
 
     def reset(self):
-        self.board = np.a
-        self.mark = "X"
+        self.board = np.zeros(self.board_shape, dtype=int)
+        self.turn_iterator = turn_iterator(self.TURN_ORDER)
+        self.curr_turn = next(self.turn_iterator)
         self.done = False
-        return self._get_obs()
-
-    def step(self, action: Tuple[int, int]):
-        """Step environment by action.
-
-        Args:
-            action (int): Location
-
-        Returns:
-            list: Observation
-            int: Reward
-            bool: Done
-            dict: Additional information
-        """
-        assert self.action_space.contains(action)
-
-        loc = action
-        if self.done:
-            return self._get_obs(), 0, True, None
-
-        reward = NO_REWARD
-        # place
-        self.board[loc] = tocode(self.mark)
-        status = check_game_status(self.board)
-        logger.debug(
-            "check_game_status board {} mark '{}'"
-            " status {}".format(self.board, self.mark, status)
-        )
-        if status >= 0:
-            self.done = True
-            if status in [1, 2]:
-                # always called by self
-                reward = O_REWARD if self.mark == "O" else X_REWARD
-
-        # switch turn
-        self.mark = next_mark(self.mark)
-        return self._get_obs(), reward, self.done, None
 
     def _get_obs(self):
-        return tuple(self.board), self.mark
+        return self.board
 
-    def render(self, mode="human", close=False):
-        if close:
-            return
-        if mode == "human":
-            self._show_board(print)  # NOQA
-            print("")
-        else:
-            self._show_board(logger.info)
-            logger.info("")
+    def step(self, action: Tuple[int, int], player:Optional[int]=None) -> Tuple[Any, float, bool, Dict]:
+        action = tuple(action)
+        if self.board[action] != 0:
+            raise error.InvalidAction(f"action {action} is not a vaid choice")
+        if not self.done:
+            error.ResetNeeded("Call reset as game is over")
 
-    def show_episode(self, human, episode):
-        self._show_episode(print if human else logger.warning, episode)
+        self.board[action] = self.curr_turn
 
-    def _show_episode(self, showfn, episode):
-        showfn("==== Episode {} ====".format(episode))
+        reward = self.check_win()
+        if reward:
+            self.done = True
+            return self._get_obs(), float(reward), self.done, {}
 
-    def _show_board(self, showfn):
-        """Draw tictactoe board."""
-        for j in range(0, 9, 3):
+        self.curr_turn = next(self.turn_iterator)
 
-            showfn(LEFT_PAD + "|".join([tomark(self.board[i]) for i in range(j, j + 3)]))
-            if j < 6:
-                showfn(LEFT_PAD + "-----")
+        return self._get_obs(), 0.0, self.done, {}
 
-    def show_turn(self, human, mark):
-        self._show_turn(print if human else logger.info, mark)
+    def check_win(self) -> int:
+        return check_win(self.board)
 
-    def _show_turn(self, showfn, mark):
-        showfn("{}'s turn.".format(mark))
+    @property
+    def valid_actions(self) -> List[Tuple[int, int]]:
+        return np.argwhere(self.board == 0).tolist()
 
-    def show_result(self, human, mark, reward):
-        self._show_result(print if human else logger.info, mark, reward)
+    @property
+    def turns_played(self):
+        return np.sum(self.board != 0)
 
-    def _show_result(self, showfn, mark, reward):
-        status = check_game_status(self.board)
-        assert status >= 0
-        if status == 0:
-            showfn("==== Finished: Draw ====")
-        else:
-            msg = "Winner is '{}'!".format(tomark(status))
-            showfn("==== Finished: {} ====".format(msg))
-        showfn("")
-
-    def available_actions(self):
-        return [i for i, c in enumerate(self.board) if c == 0]
+    def render(self, mode='human'):
+        from tabulate import tabulate
+        human_board = to_human(self.board)
+        print("\n")
+        print(f"Turn : {self.turns_played}")
+        print(tabulate(human_board.tolist(), tablefmt='fancy_grid'))
