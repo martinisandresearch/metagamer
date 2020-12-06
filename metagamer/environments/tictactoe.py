@@ -4,24 +4,17 @@ The functions provided assume the board is represented by
     - np array of shape 3,3
     - player 1 is 1, player 2 is -1 and empty is 0
 
-
 """
 import logging
+import itertools
 
 import numpy as np
 import gym
 from gym import spaces, error
 
-from typing import Iterable, Any, Tuple, Dict, List, Optional, Iterator
+from typing import Any, Tuple, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
-
-
-def turn_iterator(turn_order: Iterable[Any]) -> Iterator[Any]:
-    """Infinitely iterates through the order provided"""
-    while True:
-        for turn in turn_order:
-            yield turn
 
 
 def check_win(board: np.array) -> int:
@@ -69,52 +62,59 @@ def to_one_hot(board: np.array) -> np.array:
 
     Returns:
         3 x 3 x 3:
-            board[:, :  0] = location of empty squares
-            board[:, :, 1] = location of player 1
-            board[:, :, 2] = location of player 2 moves
+            board[0 :  :] = location of empty squares
+            board[1, :, :] = location of player 1
+            board[2, :, :] = location of player 2 moves
 
     """
     oh = np.stack((board == 0, board == 1, board == -1))
-    return oh.shape.astype(int)
+    return oh.astype(int)
 
 
-def to_human(board: np.array) -> np.array:
+def to_human(board: np.array, symbols) -> np.array:
     """Convert this into a """
     human_board = np.full(board.shape, " ")
-    human_board[np.where(board == 1)] = "X"
-    human_board[np.where(board == -1)] = "O"
+    for value, sym in symbols.items():
+        human_board[np.where(board == value)] = sym
     return human_board
 
 
 class TicTacToeEnv(gym.Env):
     """
-    TicTacToe environment in the openai gym style
-
-    This doesn't support observation_space but we can adapt that later
-
+    TicTacToe environment in the openai gym style: https://gym.openai.com/docs/
     """
 
+    # openai gym api - can also have rgb (for things like atari games) or ansi (text)
     metadata = {"render.modes": ["human"]}
 
-    TURN_ORDER = [1, -1]
+    # constants that define the game's implementation
+    TURN_ORDER = (1, -1)
+    BOARD_SHAPE = 3, 3
+    SYMBOLS = {1: "X", -1: "O"}
 
     def __init__(self):
-        self.board_shape = 3, 3
-        self.symbols = {1: "X", -1: "O"}
+        # open AI Gym API
+        # necessary to set these to allow for easy network architecture
+
+        # space of the actions - in this case the coordinate of the board to play
         self.action_space = spaces.Tuple([spaces.Discrete(3), spaces.Discrete(3)])
-        # we don't support this right now
+        # how are the observations represented. Since we return the board, we're returning
+        # a discrete 3x3 matrix where each entry is {-1, 0, 1}.
+        # this doesn't have a nice gym.spaces representation so we leave it unfilled for now
         self.observation_space = None
 
+        # state representation variables. We define them here and set them in reset
         self.board = None
         self.turn_iterator = None
         self.curr_turn = None
         self.done = None
 
+        # reset does the initalisation
         self.reset()
 
     def reset(self) -> np.array:
-        self.board = np.zeros(self.board_shape, dtype=int)
-        self.turn_iterator = turn_iterator(self.TURN_ORDER)
+        self.board = np.zeros(self.BOARD_SHAPE, dtype=int)
+        self.turn_iterator = itertools.cycle(self.TURN_ORDER)
         self.curr_turn = next(self.turn_iterator)
         self.done = False
         return self._get_obs()
@@ -122,8 +122,10 @@ class TicTacToeEnv(gym.Env):
     def _get_obs(self) -> np.array:
         """
         Abstracted the observation from the underlying state though in this case they're
-        identical. This is useful if doing something like changing the underlying state
-        or converting to one hot encoding
+        identical. This is a common pattern in most third party gym environments.
+
+        This makes changing the state output as simple as a subclass that overrides this function
+        as well as the action_space/observation space as opposed to the more onerous gym wrapper
 
         Returns:
             np.array of 3x3 representing the board in it's default state
@@ -134,26 +136,48 @@ class TicTacToeEnv(gym.Env):
     def step(
         self, action: Tuple[int, int], player: Optional[int] = None
     ) -> Tuple[Any, float, bool, Dict]:
+        """
+
+        Args:
+            action: locaton we
+            player: In more complex environments, we'll want to ensure we're not playing as the
+                the same player twice. This provides a way of checking we're not breaking
+                order by mistake
+
+        Returns:
+            observation, reward, done, info
+
+        """
+        # check the action is valid and the game isn't over
         action = tuple(action)
         if self.board[action] != 0:
             raise error.InvalidAction(f"action {action} is not a vaid choice")
         if self.done:
             raise error.ResetNeeded("Call reset as game is over")
+        if player and player != self.curr_turn:
+            raise error.InvalidAction(
+                f"Player {self.curr_turn}'s turn. Move request from {player}"
+            )
 
         logger.debug("Selected action: %s on turn %d", action, self.turns_played + 1)
 
+        # set the location on the board to the current player. Since curr_turn
+        # and current player use the same indicator, we just use that
         self.board[action] = self.curr_turn
 
+        # check if the game is over. Reward is player that won (1 or -1)
         reward = check_win(self.board)
         if reward:
             self.done = True
             return self._get_obs(), float(reward), self.done, {}
 
+        # check if the game is over (i.e. no more turns). Since we don't have a win
+        # it must be a draw
         if self.turns_played == 9:
-            # draw
             self.done = True
             return self._get_obs(), 0.0, self.done, {}
 
+        # otherwise game is still going. Advance turn and return state + no reward
         self.curr_turn = next(self.turn_iterator)
         return self._get_obs(), 0.0, self.done, {}
 
@@ -170,7 +194,7 @@ class TicTacToeEnv(gym.Env):
 
         tabulate.PRESERVE_WHITESPACE = True
 
-        human_board = to_human(self.board)
+        human_board = to_human(self.board, self.SYMBOLS)
         print("\n")
         print(f"Turn : {self.turns_played}")
         print(tabulate.tabulate(human_board.tolist(), tablefmt="fancy_grid"))
