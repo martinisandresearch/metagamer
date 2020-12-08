@@ -10,6 +10,23 @@ def tt():
     return tictactoe.TicTacToeEnv()
 
 
+def test_policy_page_lines():
+    """
+    Just a calling a policy to make sure that it replay from a couple of different boards.
+    """
+    game = tictactoe.TicTacToeEnv()
+    while not game.done:
+        game.step(random.choice(game.valid_actions))
+        if not game.done:
+            game.step(tictactoe.policy_page_lines(game._get_obs()))
+
+    game = tictactoe.TicTacToeEnv()
+    while not game.done:
+        game.step(tictactoe.policy_page_lines(game._get_obs()))
+        if not game.done:
+            game.step(random.choice(game.valid_actions))
+
+
 def test_simple_game(tt):
     """
     We make a game go where X is going from top left to bottom left

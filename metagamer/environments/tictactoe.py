@@ -17,6 +17,28 @@ from typing import Any, Tuple, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def policy_page_lines(board: np.array, player: int = 1) -> tuple:
+    """
+    return a possible position that hasn't yet been played.
+    This policy tries simply to fill the board from the top left.
+    Args:
+        board: a 3*3 numpy array whose elements are 0, 1, -1
+        player: either 1 or -1, representing
+    representing empty, player1 and player 2,
+
+    Returns: a tuple representing an unfilled coordinate that's selected.
+
+    """
+    row = 0
+    while row in range(board.shape[0]):
+        col = 0
+        while col in range(board.shape[1]):
+            if board[row, col] == 0:
+                return (row, col)
+            col += 1
+        row += 1
+
+
 def check_win(board: np.array) -> int:
     """
     Given a 3*3 numpy array whose elements are 0, 1, -1
