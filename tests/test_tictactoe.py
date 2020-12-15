@@ -10,21 +10,24 @@ def tt():
     return tictactoe.TicTacToeEnv()
 
 
-def test_policy_page_lines():
+def test_policy_page_lines_first(tt):
     """
-    Just a calling a policy to make sure that it replay from a couple of different boards.
+    Just a calling a policy to make sure that it replay from a couple of different boards playing first.
     """
-    game = tictactoe.TicTacToeEnv()
-    while not game.done:
-        game.step(random.choice(game.valid_actions))
-        if not game.done:
-            game.step(tictactoe.policy_page_lines(game._get_obs()))
+    while not tt.done:
+        tt.step(random.choice(tt.valid_actions))
+        if not tt.done:
+            tt.step(tictactoe.policy_page_lines(tt._get_obs(), 1))
 
-    game = tictactoe.TicTacToeEnv()
-    while not game.done:
-        game.step(tictactoe.policy_page_lines(game._get_obs()))
-        if not game.done:
-            game.step(random.choice(game.valid_actions))
+
+def test_policy_page_lines_second(tt):
+    """
+    Just a calling a policy to make sure that it replay from a couple of different boards playing second.
+    """
+    while not tt.done:
+        tt.step(tictactoe.policy_page_lines(tt._get_obs(), -1))
+        if not tt.done:
+            tt.step(random.choice(tt.valid_actions))
 
 
 def test_simple_game(tt):
