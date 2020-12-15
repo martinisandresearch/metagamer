@@ -12,10 +12,17 @@ def exploit(epsilon):
 class Agent:
     VID_DIR = "./extra/video"
 
-    def __init__(self, Qstate, gamma: float = GAMMA):
+    def __init__(self, Qstate, gamma: float = GAMMA, player: int = 1):
         self.env = tictactoe.TicTacToeEnv()
         self.gamma = gamma
         self.Qstate = Qstate(statedim=1, num_actions=self.env.action_space.n)
+        self.player = player
+        if self.player == 1:
+            self.other = -1
+            self.reward_multiple = 1
+        else:
+            self.other = 1
+            self.reward_multiple = -1
 
     def get_action(self, state, epsilon):
         if exploit(epsilon):
@@ -44,13 +51,22 @@ class Agent:
 
             while not done:
                 action = self.get_action(state, epsilon=epsilon)
-                new_state, reward, done, info = self.env.step(action)
+                new_state, reward, done, info = self.env.step(action, self.player)
+
+                # Get the other player to take their turn, and update state
                 if not done:
+                    new_state, reward, done, info = self.env.step(
+                        tictactoe.policy_page_lines(self.env.board, self.other),
+                        self.other,
+                    )
+
+                if not done:
+                    reward = reward * self.reward_multiple
                     # add the future reward * decay if we're still going
                     reward += self.gamma * self.Qstate.get_max(new_state)
                     steps += 1
 
-                self.Qstate[state, action] = reward
+                self.Qstate[state, action] = reward * self.reward_multiple
                 state = new_state
 
             num_steps[i] = steps
