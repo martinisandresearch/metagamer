@@ -13,19 +13,23 @@ def exploit(epsilon):
 
 
 class TicTacToeTableEnv(tictactoe.TicTacToeEnv):
+    """An TicTacTo subclass environment adapted to Q learning"""
+
     SYMBOLS = {1: "X", -1: "O", 0: " "}
 
-    def _get_obs(self) -> np.array:
+    def _get_obs(self) -> str:
         return "".join([self.SYMBOLS[i] for i in self.board.flatten()])
 
+    def action_to_2d(self, action: int):
+        """Turns the integer position (in array of board) into 2D coordinate in form of tuple """
+        new_action = tuple(
+            np.unravel_index(action, (self.board.shape[0], self.board.shape[1]))
+        )
+        return new_action
 
-def action_to_2d(action: int):
-    new_action = tuple(np.unravel_index(action, (3, 3)))
-    return new_action
-
-
-def action_to_1d(action: Tuple[int, int]) -> int:
-    return 3 * action[0] + action[1]
+    def action_to_1d(self, action: Tuple[int, int]) -> int:
+        """Take a 2D coordinate on the board, and turn it into an integer position on the board"""
+        return self.board.shape[1] * action[0] + action[1]
 
 
 class Agent:
@@ -44,11 +48,13 @@ class Agent:
             self.reward_multiple = -1
 
     def valid_actions(self):
-        return [action_to_1d(a) for a in self.env.valid_actions]
+        return [self.env.action_to_1d(a) for a in self.env.valid_actions]
 
     def get_action(self, state, epsilon):
         if exploit(epsilon):
-            return action_to_2d(self.Qstate.get_arg_max(state, self.valid_actions()))
+            return self.env.action_to_2d(
+                self.Qstate.get_arg_max(state, self.valid_actions())
+            )
         else:
             return random.choice(self.env.valid_actions)
 
