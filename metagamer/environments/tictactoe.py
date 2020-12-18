@@ -7,6 +7,7 @@ The functions provided assume the board is represented by
 """
 import logging
 import itertools
+import random
 
 import numpy as np
 import gym
@@ -33,6 +34,11 @@ def policy_page_lines(board: np.array, player: int) -> Tuple[int, int]:
         for col in range(board.shape[1]):
             if board[row, col] == 0:
                 return (row, col)
+
+
+def random_policy(board: np.array, player: int) -> Tuple[int, int]:
+    valid = [tuple(act) for act in np.argwhere(board == 0).tolist()]
+    return random.choice(valid)
 
 
 def check_win(board: np.array) -> int:

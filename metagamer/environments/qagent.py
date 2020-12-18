@@ -33,30 +33,52 @@ class TicTacToeTableEnv(tictactoe.TicTacToeEnv):
 
 
 class Agent:
-    VID_DIR = "./extra/video"
+    def __init__(self, player_number):
+        self.player_number = player_number
+        self.train = True
+        self.epsilon = 0.9
 
-    def __init__(self, gamma: float = GAMMA, player: int = 1):
+    def get_action(self, state, valid_actions):
+        if exploit(self.epsilon) and not self.train:
+            return self.get_arg_max(state, self.valid_actions())
+        return random.choice(valid_actions)
+
+    def get_arg_max(self, state, valid_actions):
+        """used to play"""
+        pass
+
+    def get_max(self, state, valid_actions):
+        """used to train"""
+        pass
+
+    def __setitem__(self, key, value):
+        pass
+
+
+class Random(Agent):
+    def to_action(self, action):
+        return
+
+    def get_arg_max(self, state, valid_actions):
+        return tictactoe.random_policy(state, self.player_number)
+
+    def get_max(self, state, valid_actions):
+        return 1
+
+    # qtable
+    # random
+    # dqn
+    # policy gradient
+    # left to right
+
+
+class TicTacToeRunner:
+    def __init__(self, agent1: Agent, agent2: Agent, gamma: float = GAMMA):
         self.env = TicTacToeTableEnv()
         self.gamma = gamma
-        self.Qstate = qtable.QTicTacTable()
-        self.player = player
-        if self.player == 1:
-            self.other = -1
-            self.reward_multiple = 1
-        else:
-            self.other = 1
-            self.reward_multiple = -1
-
-    def valid_actions(self):
-        return [self.env.action_to_1d(a) for a in self.env.valid_actions]
-
-    def get_action(self, state, epsilon):
-        if exploit(epsilon):
-            return self.env.action_to_2d(
-                self.Qstate.get_arg_max(state, self.valid_actions())
-            )
-        else:
-            return random.choice(self.env.valid_actions)
+        # player order
+        self.agent1 = Random(1)
+        self.agent2 = Random(-1)
 
     def train(self, num_epsiodes, initeps=1, finaleps=0.05):
         """
@@ -67,45 +89,61 @@ class Agent:
 
         test_window = int(num_epsiodes / 20)
 
-        num_steps = np.zeros(num_epsiodes)
+        results = np.zeros(num_epsiodes)
         eps_vals = np.zeros(num_epsiodes)
 
         for i in range(num_epsiodes):
-            state = self.env.reset()
+            p1_state = self.env.reset()
             steps = 0
             epsilon -= epsdecay
 
             done = False
 
             while not done:
-                action = self.get_action(state, epsilon=epsilon)
+                p1_action = self.agent1.get_action(p1_state, self.env.valid_actions)
 
-                new_state, reward, done, info = self.env.step(action, self.player)
+                p2_state, p2_reward, done, info = self.env.step(p1_action, 1)
                 if i == num_epsiodes - 1:
                     self.env.render()
 
-                # Get the other player to take their turn, and update state
-                if not done:
-                    new_state, reward, done, info = self.env.step(
-                        tictactoe.policy_page_lines(self.env.board, self.other),
-                        self.other,
-                    )
-                    if i == num_epsiodes - 1:
-                        self.env.render()
+                if done:
+                    # player 1 has won and we need send rewards
+                    self.agent1[p1_state, p1_action] = p2_reward
 
-                if not done:
-                    reward = reward * self.reward_multiple
+                    # if game is over we also need to send state back to player2
+                    self.agent2[p2_state, p2_action] = p2_reward * -1
+                    break
+
+                # Get the other player to take their turn, and update state
+                p2_action = self.agent2.get_action(p2_state, self.env.valid_actions)
+
+                p1_state, p1_reward, done, info = self.env.step(p2_action, -1)
+                if i == num_epsiodes - 1:
+                    self.env.render()
+
+                if done:
+                    # player 2
+                    self.agent2[p2_state, p2_action] = p1_reward * -1
+                    self.agent1[p1_state, p1_action] = p1_reward
+                    break
+
+                else:
                     # add the future reward * decay if we're still going
-                    reward += self.gamma * self.Qstate.get_max(
-                        new_state, self.valid_actions()
+                    p1_reward += self.gamma * self.agent1.get_max(
+                        p1_state, self.env.valid_actions
                     )
                     steps += 1
-                # to 1 d
-                action = action[0] * 3 + action[1]
-                self.Qstate[state, action] = reward * self.reward_multiple
-                state = new_state
+                    # self.agent1[p1_state]
+                # # to 1 d
+                # action = action[0] * 3 + action[1]
+                # self.Qstate[state, action] = reward * self.reward_multiple
+                # state = new_state
 
-            num_steps[i] = steps
+            # if reward == -1 and i > 3 *num_epsiodes//4:
+            #     print("Found a loss")
+            #     self.env.render()
+
+            results[i] = reward
             eps_vals[i] = epsilon
 
             if i and i % test_window == 0:
@@ -113,12 +151,12 @@ class Agent:
                 upp = i
                 low = upp - test_window
                 print(
-                    f"{i}: eps:{epsilon:.2f},  max: {np.max(num_steps[low:upp])}"
-                    f" ave: {np.mean(num_steps[low:upp]):.2f}"
-                    f" std: {np.std(num_steps[low:upp]):.2f}"
+                    f"{i}: eps:{epsilon:.2f},  wins: {np.sum(results[low:upp]==1)}"
+                    f" losses: {np.sum(results[low:upp]==-1):.2f}"
+                    f" draws: {np.sum(results[low:upp]==0):.2f}"
                 )
 
-        return num_steps, eps_vals
+        return results, eps_vals
 
     # def run(self):
     #     from gym.wrappers.monitor import Monitor
@@ -140,5 +178,9 @@ class Agent:
 
 
 if __name__ == "__main__":
+    from pprint import pprint
+
     agent = Agent()
-    agent.train(1000, finaleps=0)
+    agent.train(10000, finaleps=-0.1)
+    pprint(agent.Qstate.qdict[" " * 9])
+    pprint(len(agent.Qstate.qdict))
