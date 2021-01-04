@@ -177,7 +177,6 @@ class TicTacToeEnv(gym.Env):
                 f"Player {self.curr_turn}'s turn. Move request from {player}"
             )
 
-
         # set the location on the board to the current player. Since curr_turn
         # and current player use the same indicator, we just use that
         self.board[action] = self.curr_turn
@@ -197,7 +196,6 @@ class TicTacToeEnv(gym.Env):
         # otherwise game is still going. Advance turn and return state + no reward
         self.curr_turn = next(self.turn_iterator)
         return self.get_observation(), 0.0, self.done, {}
-
 
     def get_observation(self) -> Any:
         """

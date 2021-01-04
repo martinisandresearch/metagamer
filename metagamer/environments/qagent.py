@@ -27,7 +27,9 @@ class ModWrapper(gym.Wrapper):
         return self.observation(observation)
 
     def step(self, action, *args, **kwargs):
-        observation, reward, done, info = self.env.step(self.action(action), *args, **kwargs)
+        observation, reward, done, info = self.env.step(
+            self.action(action), *args, **kwargs
+        )
         return self.observation(observation), reward, done, info
 
     def get_observation(self):
@@ -247,10 +249,8 @@ class TicTacToeRunner:
         # player 2 wrapper multiplies reward by -1
         self.agent2_env = self.agent2.wrapper(self.env)
 
-
     def train(self, num_epsiodes):
-        """
-        """
+        """"""
 
         results = np.zeros(num_epsiodes)
         eps_vals = np.zeros(num_epsiodes)
@@ -267,11 +267,15 @@ class TicTacToeRunner:
             while True:
 
                 p2_state = self.agent2_env.get_observation()
-                p2_action = self.agent2.get_action(p2_state, self.agent2_env.valid_actions)
+                p2_action = self.agent2.get_action(
+                    p2_state, self.agent2_env.valid_actions
+                )
                 _, reward, done, info = self.agent2_env.step(p2_action, -1)
 
                 if not done:
-                    p1_qscore = reward + self.agent1.get_max(self.agent1_env.get_observation())
+                    p1_qscore = reward + self.agent1.get_max(
+                        self.agent1_env.get_observation()
+                    )
                     self.agent1.set_reward(p1_state, p1_action, p1_qscore)
 
                 else:
@@ -280,11 +284,15 @@ class TicTacToeRunner:
                     break
 
                 p1_state = self.agent1_env.get_observation()
-                p1_action = self.agent1.get_action(p1_state, self.agent1_env.valid_actions)
+                p1_action = self.agent1.get_action(
+                    p1_state, self.agent1_env.valid_actions
+                )
                 _, reward, done, info = self.agent1_env.step(p1_action, 1)
 
                 if not done:
-                    p2_qscore = reward * -1 + self.agent2.get_max(self.agent2_env.get_observation())
+                    p2_qscore = reward * -1 + self.agent2.get_max(
+                        self.agent2_env.get_observation()
+                    )
                     self.agent2.set_reward(p2_state, p2_action, p2_qscore)
                 else:
                     self.agent1.set_reward(p1_state, p1_action, reward)
@@ -308,9 +316,13 @@ class TicTacToeRunner:
             while not done:
                 p1_state = self.agent1_env.get_observation()
                 logger.info(
-                    "p1_state: '%s', valid_actions: %s", p1_state, self.agent1_env.valid_actions
+                    "p1_state: '%s', valid_actions: %s",
+                    p1_state,
+                    self.agent1_env.valid_actions,
                 )
-                p1_action = self.agent1.get_action(p1_state, self.agent1_env.valid_actions)
+                p1_action = self.agent1.get_action(
+                    p1_state, self.agent1_env.valid_actions
+                )
                 logger.info("p1_action: %s", p1_action)
 
                 _, reward, done, _ = self.agent1_env.step(p1_action, 1)
@@ -322,7 +334,9 @@ class TicTacToeRunner:
                     break
 
                 p2_state = self.agent2_env.get_observation()
-                p2_action = self.agent2.get_action(p2_state, self.agent2_env.valid_actions)
+                p2_action = self.agent2.get_action(
+                    p2_state, self.agent2_env.valid_actions
+                )
                 _, reward, done, _ = self.agent2_env.step(p2_action, -1)
 
                 self.env.render("human")
@@ -342,7 +356,7 @@ if __name__ == "__main__":
     battledome = TicTacToeRunner(determined, agent)
     battledome.run()
     for i in range(10):
-        agent.epsilon = (9-i)/10
+        agent.epsilon = (9 - i) / 10
         print("Agent epsilon ", agent.epsilon)
         battledome.train(100)
     battledome.run()
