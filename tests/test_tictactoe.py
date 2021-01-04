@@ -17,7 +17,7 @@ def test_policy_page_lines_first(tt):
     while not tt.done:
         tt.step(random.choice(tt.valid_actions))
         if not tt.done:
-            tt.step(tictactoe.policy_page_lines(tt._get_obs(), 1))
+            tt.step(tictactoe.policy_page_lines(tt.get_observation(), 1))
 
 
 def test_policy_page_lines_second(tt):
@@ -25,7 +25,7 @@ def test_policy_page_lines_second(tt):
     Just a calling a policy to make sure that it replay from a couple of different boards playing second.
     """
     while not tt.done:
-        tt.step(tictactoe.policy_page_lines(tt._get_obs(), -1))
+        tt.step(tictactoe.policy_page_lines(tt.get_observation(), -1))
         if not tt.done:
             tt.step(random.choice(tt.valid_actions))
 

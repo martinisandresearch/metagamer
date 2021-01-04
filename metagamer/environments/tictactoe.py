@@ -33,7 +33,7 @@ def policy_page_lines(board: np.array, player: int) -> Tuple[int, int]:
     for row in range(board.shape[0]):
         for col in range(board.shape[1]):
             if board[row, col] == 0:
-                return (row, col)
+                return row, col
 
 
 def random_policy(board: np.array, player: int) -> Tuple[int, int]:
@@ -51,25 +51,26 @@ def check_win(board: np.array) -> int:
         board (np.array): 3 x 3 board
 
     Returns:
-        int: 0  -> no winner
-             1  -> player 1
+        int:  0 -> no winner
+              1 -> player 1
              -1 -> player 2
 
     """
-    assert board.shape == (3, 3)
+    assert board.shape[0] == board.shape[1]
+    compval = board.shape[0]
     for axis in [0, 1]:
         axis_sum = board.sum(axis=axis)
-        if 3 in axis_sum:
+        if compval in axis_sum:
             return 1
-        elif -3 in axis_sum:
+        elif -compval in axis_sum:
             return -1
 
     diag = board.diagonal().sum()
     diag_inv = np.fliplr(board).diagonal().sum()
     for diag_sum in [diag, diag_inv]:
-        if diag_sum == 3:
+        if diag_sum == compval:
             return 1
-        elif diag_sum == -3:
+        elif diag_sum == -compval:
             return -1
 
     # no winner yet
@@ -106,6 +107,12 @@ def to_human(board: np.array, symbols) -> np.array:
 class TicTacToeEnv(gym.Env):
     """
     TicTacToe environment in the openai gym style: https://gym.openai.com/docs/
+
+    In addition, we require the definition of two functions
+    1. `get_observation` which returns the observation
+    2. `valid_actions` - returns a list of valid actions
+
+    The first is necessary for
     """
 
     # openai gym api - can also have rgb (for things like atari games) or ansi (text)
@@ -114,7 +121,7 @@ class TicTacToeEnv(gym.Env):
     # constants that define the game's implementation
     TURN_ORDER = (1, -1)
     BOARD_SHAPE = 3, 3
-    SYMBOLS = {1: "X", -1: "O"}
+    SYMBOLS = {1: "X", -1: "O", 0: " "}
 
     def __init__(self):
         # open AI Gym API
@@ -141,24 +148,10 @@ class TicTacToeEnv(gym.Env):
         self.turn_iterator = itertools.cycle(self.TURN_ORDER)
         self.curr_turn = next(self.turn_iterator)
         self.done = False
-        return self._get_obs()
-
-    def _get_obs(self) -> np.array:
-        """
-        Abstracted the observation from the underlying state though in this case they're
-        identical. This is a common pattern in most third party gym environments.
-
-        This makes changing the state output as simple as a subclass that overrides this function
-        as well as the action_space/observation space as opposed to the more onerous gym wrapper
-
-        Returns:
-            np.array of 3x3 representing the board in it's default state
-
-        """
-        return self.board
+        return self.get_observation()
 
     def step(
-        self, action: Tuple[int, int], player: Optional[int] = None
+        self, action: Any, player: Optional[int] = None
     ) -> Tuple[Any, float, bool, Dict]:
         """
 
@@ -174,6 +167,7 @@ class TicTacToeEnv(gym.Env):
         """
         # check the action is valid and the game isn't over
         action = tuple(action)
+        logger.debug("Selected action: %s on turn %d", action, self.turns_played + 1)
         if self.board[action] != 0:
             raise error.InvalidAction(f"action {action} is not a vaid choice")
         if self.done:
@@ -183,7 +177,6 @@ class TicTacToeEnv(gym.Env):
                 f"Player {self.curr_turn}'s turn. Move request from {player}"
             )
 
-        logger.debug("Selected action: %s on turn %d", action, self.turns_played + 1)
 
         # set the location on the board to the current player. Since curr_turn
         # and current player use the same indicator, we just use that
@@ -193,17 +186,32 @@ class TicTacToeEnv(gym.Env):
         reward = check_win(self.board)
         if reward:
             self.done = True
-            return self._get_obs(), float(reward), self.done, {}
+            return self.get_observation(), float(reward), self.done, {}
 
         # check if the game is over (i.e. no more turns). Since we don't have a win
         # it must be a draw
         if self.turns_played == 9:
             self.done = True
-            return self._get_obs(), 0.0, self.done, {}
+            return self.get_observation(), 0.0, self.done, {}
 
         # otherwise game is still going. Advance turn and return state + no reward
         self.curr_turn = next(self.turn_iterator)
-        return self._get_obs(), 0.0, self.done, {}
+        return self.get_observation(), 0.0, self.done, {}
+
+
+    def get_observation(self) -> Any:
+        """
+        Abstracted the observation from the underlying state though in this case they're
+        identical. This is a common pattern in most third party gym environments.
+
+        This makes changing the state output as simple as a subclass that overrides this function
+        as well as the action_space/observation space as opposed to the more onerous gym wrapper
+
+        Returns:
+            np.array of 3x3 representing the board in it's default state
+
+        """
+        return self.board
 
     @property
     def valid_actions(self) -> List[Tuple[int, int]]:
