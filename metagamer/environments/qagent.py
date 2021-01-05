@@ -10,7 +10,7 @@ import numpy as np
 
 from metagamer.environments import tictactoe
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("tictrainer")
 
 
@@ -111,9 +111,17 @@ class Agent:
 
     def get_action(self, state, valid_actions):
         """Epsilon greedy when in training mode. Override for determinstic agents"""
-        if self.eval or exploit(self.epsilon):
+        if self.eval:
             return self.get_arg_max(state, valid_actions)
-        return random.choice(valid_actions)
+        else:
+            # if epsilon is high - we want to explore
+            # if epsilon is low - we want to optimize
+
+            exploit = random.random() < self.epsilon
+            if exploit:
+                return random.choice(valid_actions)
+            else:
+                return self.get_arg_max(state, valid_actions)
 
     def get_arg_max(self, state, valid_actions):
         """used to play, override this or get_action"""
@@ -208,6 +216,9 @@ class QTicTacTable(Agent):
         Only allowed to set a state, value pair.
         Update is as per alpha value
         """
+        if self.eval:
+            # no learning in eval mode
+            return
         self.qdict[state][action] = (
             self.qdict[state][action] * (1 - self.alpha) + value * self.alpha
         )
@@ -253,7 +264,6 @@ class TicTacToeRunner:
         """"""
 
         results = np.zeros(num_epsiodes)
-        eps_vals = np.zeros(num_epsiodes)
 
         for i in range(num_epsiodes):
             self.env.reset()
@@ -302,12 +312,13 @@ class TicTacToeRunner:
             results[i] = reward
 
         print(
-            f"{num_epsiodes} games crosses: {np.sum(results == 1):.2f}"
+            f"games {num_epsiodes}"
+            f" crosses: {np.sum(results == 1):.2f}"
             f" naughts: {np.sum(results == -1):.2f}"
             f" draws: {np.sum(results == 0):.2f}"
         )
 
-        return results, eps_vals
+        return results
 
     def run(self):
         done = False
@@ -352,12 +363,40 @@ if __name__ == "__main__":
     from pprint import pprint
 
     agent = QTicTacTable(0.1)
-    determined = EpsilonPageLines()
-    battledome = TicTacToeRunner(determined, agent)
-    battledome.run()
-    for i in range(10):
-        agent.epsilon = (9 - i) / 10
+    determined = PageLines()
+    battledome = TicTacToeRunner(agent, determined)
+    # battledome.run()
+    nr = 30
+    for i in range(nr):
+        agent.epsilon = (nr - 1 - i) / nr
         print("Agent epsilon ", agent.epsilon)
         battledome.train(100)
+
     battledome.run()
+
+    agent.train = False
+    new_agent = QTicTacTable(0.1)
+    new_dome = TicTacToeRunner(agent, new_agent)
+
+    # warm up new agent against already successful naughts player
+
+    nr = 25
+    for i in range(nr):
+        new_agent.epsilon = (nr-1-i)/nr
+        print("New_Agent epsilon ", new_agent.epsilon)
+        new_dome.train(100)
+
+    new_dome.run()
+
+    # self play
+    nr = 50
+    agent.train = True
+    new_agent.train = True
+    for i in range(nr):
+        new_agent.epsilon = (nr-1-i)/nr
+        print("New_Agent epsilon ", new_agent.epsilon)
+        new_dome.train(100)
+
+    new_dome.run()
+
     # pprint(agent.qdict)
