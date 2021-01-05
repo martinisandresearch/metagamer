@@ -359,44 +359,74 @@ class TicTacToeRunner:
         self.agent2.train = True
 
 
-if __name__ == "__main__":
+def pure_self_play():
+    p1 = QTicTacTable(0.1)
+    p2 = QTicTacTable(0.1)
+    new_dome = TicTacToeRunner(p1, p2)
+    nr = 100
+    p2.train = True
+    p1.train = True
+    for i in range(nr):
+        p1.epsilon = (nr-1-i)/nr
+        p2.epsilon = (nr-1-i)/nr
+        print("epsilon", p1.epsilon, end=" ")
+        new_dome.train(100)
+
+    print("\nNo training")
+    p1.train = False
+    p2.train = False
+    new_dome.train(100)
+    new_dome.run()
+
+
+
+def main():
+
+
+
     from pprint import pprint
 
-    agent = QTicTacTable(0.1)
+    p1 = QTicTacTable(0.1)
     determined = PageLines()
-    battledome = TicTacToeRunner(agent, determined)
+    battledome = TicTacToeRunner(p1, determined)
     # battledome.run()
     nr = 30
     for i in range(nr):
-        agent.epsilon = (nr - 1 - i) / nr
-        print("Agent epsilon ", agent.epsilon)
+        p1.epsilon = (nr - 1 - i) / nr
+        print("Agent epsilon ", p1.epsilon)
         battledome.train(100)
 
     battledome.run()
 
-    agent.train = False
-    new_agent = QTicTacTable(0.1)
-    new_dome = TicTacToeRunner(agent, new_agent)
+    p1.train = False
+    p2 = QTicTacTable(0.1)
+    new_dome = TicTacToeRunner(p1, p2)
 
     # warm up new agent against already successful naughts player
 
     nr = 25
     for i in range(nr):
-        new_agent.epsilon = (nr-1-i)/nr
-        print("New_Agent epsilon ", new_agent.epsilon)
+        p2.epsilon = (nr-1-i)/nr
+        print("New_Agent epsilon ", p2.epsilon)
         new_dome.train(100)
 
     new_dome.run()
 
     # self play
-    nr = 50
-    agent.train = True
-    new_agent.train = True
+    nr = 100
     for i in range(nr):
-        new_agent.epsilon = (nr-1-i)/nr
-        print("New_Agent epsilon ", new_agent.epsilon)
+
+        p2.epsilon = (nr-1-i)/nr
+
+        print("New_Agent epsilon ", p2.epsilon)
         new_dome.train(100)
+
+
 
     new_dome.run()
 
     # pprint(agent.qdict)
+
+
+if __name__ == "__main__":
+    pure_self_play()
