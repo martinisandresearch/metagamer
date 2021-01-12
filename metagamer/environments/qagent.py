@@ -283,7 +283,7 @@ class TicTacToeRunner:
                 _, reward, done, info = self.agent2_env.step(p2_action, -1)
 
                 if not done:
-                    p1_qscore = reward + self.agent1.get_max(
+                    p1_qscore = reward + self.agent1.get_discounted_max(
                         self.agent1_env.get_observation()
                     )
                     self.agent1.set_reward(p1_state, p1_action, p1_qscore)
@@ -300,7 +300,7 @@ class TicTacToeRunner:
                 _, reward, done, info = self.agent1_env.step(p1_action, 1)
 
                 if not done:
-                    p2_qscore = reward * -1 + self.agent2.get_max(
+                    p2_qscore = reward * -1 + self.agent2.get_discounted_max(
                         self.agent2_env.get_observation()
                     )
                     self.agent2.set_reward(p2_state, p2_action, p2_qscore)
@@ -367,8 +367,8 @@ def pure_self_play():
     p2.train = True
     p1.train = True
     for i in range(nr):
-        p1.epsilon = (nr-1-i)/nr
-        p2.epsilon = (nr-1-i)/nr
+        p1.epsilon = (nr - 1 - i) / nr
+        p2.epsilon = (nr - 1 - i) / nr
         print("epsilon", p1.epsilon, end=" ")
         new_dome.train(100)
 
@@ -379,10 +379,7 @@ def pure_self_play():
     new_dome.run()
 
 
-
 def main():
-
-
 
     from pprint import pprint
 
@@ -406,7 +403,7 @@ def main():
 
     nr = 25
     for i in range(nr):
-        p2.epsilon = (nr-1-i)/nr
+        p2.epsilon = (nr - 1 - i) / nr
         print("New_Agent epsilon ", p2.epsilon)
         new_dome.train(100)
 
@@ -416,12 +413,10 @@ def main():
     nr = 100
     for i in range(nr):
 
-        p2.epsilon = (nr-1-i)/nr
+        p2.epsilon = (nr - 1 - i) / nr
 
         print("New_Agent epsilon ", p2.epsilon)
         new_dome.train(100)
-
-
 
     new_dome.run()
 
