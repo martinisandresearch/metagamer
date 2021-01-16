@@ -183,12 +183,6 @@ class EpsilonPageLines(Agent):
                 if state[row, col] == 0:
                     return row, col
 
-    # qtable
-    # random
-    # dqn
-    # policy gradient
-    # left to right
-
 
 class QTicTacTable(Agent):
     def wrapper(self, env):
