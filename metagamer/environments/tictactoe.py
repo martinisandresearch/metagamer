@@ -105,7 +105,9 @@ class TicTacToeEnv(gym.Env):
         # necessary to set these to allow for easy network architecture
 
         # space of the actions - in this case the coordinate of the board to play
-        self.action_space = spaces.Tuple([spaces.Discrete(3), spaces.Discrete(3)])
+        self.action_space = spaces.Tuple(
+            [spaces.Discrete(self.BOARD_SHAPE[0]), spaces.Discrete(self.BOARD_SHAPE[1])]
+        )
         # how are the observations represented. Since we return the board, we're returning
         # a discrete 3x3 matrix where each entry is {-1, 0, 1}.
         # this doesn't have a nice gym.spaces representation so we leave it unfilled for now
