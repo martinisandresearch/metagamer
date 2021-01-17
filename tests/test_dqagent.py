@@ -2,8 +2,8 @@ from metagamer.agents import dqagent
 
 
 def test_pure_self_play():
-    p1 = dqagent.DQTicTacTable(0.1)
-    p2 = dqagent.DQTicTacTable(0.1)
+    p1 = dqagent.DQTicTacTable()
+    p2 = dqagent.DQTicTacTable()
     new_dome = dqagent.DTicTacToeRunner(p1, p2)
     nr = 20
     p2.train = True

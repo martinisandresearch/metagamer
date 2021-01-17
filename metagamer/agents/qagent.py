@@ -109,7 +109,7 @@ class Agent:
         finally:
             self.train = curr_train
 
-    def get_action(self, state, valid_actions):
+    def get_action(self, state, valid_actions, **kwargs):
         """Epsilon greedy when in training mode. Override for determinstic agents"""
         if self.eval:
             return self.get_arg_max(state, valid_actions)
@@ -254,12 +254,12 @@ class TicTacToeRunner:
         # player 2 wrapper multiplies reward by -1
         self.agent2_env = self.agent2.wrapper(self.env)
 
-    def train(self, num_epsiodes):
+    def train(self, num_episodes):
         """"""
 
-        results = np.zeros(num_epsiodes)
+        results = np.zeros(num_episodes)
 
-        for i in range(num_epsiodes):
+        for i in range(num_episodes):
             self.env.reset()
 
             # run first two moves
@@ -306,7 +306,7 @@ class TicTacToeRunner:
             results[i] = reward
 
         print(
-            f"games {num_epsiodes}"
+            f"games {num_episodes}"
             f" crosses: {np.sum(results == 1):.2f}"
             f" naughts: {np.sum(results == -1):.2f}"
             f" draws: {np.sum(results == 0):.2f}"
