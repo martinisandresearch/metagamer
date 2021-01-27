@@ -129,9 +129,7 @@ class TicTacToeEnv(gym.Env):
         self.done = False
         return self.get_observation()
 
-    def step(
-        self, action: Any, player: Optional[int] = None
-    ) -> Tuple[Any, float, bool, Dict]:
+    def step(self, action: Any, player: Optional[int] = None) -> Tuple[Any, float, bool, Dict]:
         """
 
         Args:
@@ -148,13 +146,11 @@ class TicTacToeEnv(gym.Env):
         action = tuple(action)
         logger.debug("Selected action: %s on turn %d", action, self.turns_played + 1)
         if self.board[action] != 0:
-            raise error.InvalidAction(f"action {action} is not a vaid choice")
+            raise error.InvalidAction(f"action {action} is not a valid choice - try {self.valid_actions}")
         if self.done:
             raise error.ResetNeeded("Call reset as game is over")
         if player and player != self.curr_turn:
-            raise error.InvalidAction(
-                f"Player {self.curr_turn}'s turn. Move request from {player}"
-            )
+            raise error.InvalidAction(f"Player {self.curr_turn}'s turn. Move request from {player}")
 
         # set the location on the board to the current player. Since curr_turn
         # and current player use the same indicator, we just use that

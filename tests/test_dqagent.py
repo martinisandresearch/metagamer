@@ -17,4 +17,3 @@ def test_pure_self_play():
     p1.train = False
     p2.train = False
     new_dome.train(100)
-    new_dome.run()

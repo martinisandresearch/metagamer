@@ -1,6 +1,7 @@
 import gym
 import torch
 import numpy as np
+import torch
 from torch import nn
 import torch.nn.functional as F
 import collections
@@ -10,7 +11,7 @@ from typing import Tuple, Optional, Any, Dict, Sequence, List
 import random
 import logging
 from metagamer.environments.tictactoe import TicTacToeEnv
-from metagamer.agents.qagent import Agent, QtableWrapper
+from metagamer.agents.qagent import Agent, ModWrapper,QtableWrapper
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("tictrainer")
@@ -106,6 +107,8 @@ def update_parameters(current_model, target_model):
 
 
 def train_network(batch_size, current, target, optim, memory, gamma):
+    optim.zero_grad()
+
 
     states, actions, next_states, rewards, is_done = memory.sample(batch_size)
 
@@ -113,6 +116,7 @@ def train_network(batch_size, current, target, optim, memory, gamma):
 
     next_q_values = current(next_states)
     next_q_state_values = target(next_states)
+
 
     q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
     next_q_value = next_q_state_values.gather(
@@ -122,14 +126,28 @@ def train_network(batch_size, current, target, optim, memory, gamma):
 
     loss = (q_value - expected_q_value.detach()).pow(2).mean()
 
-    optim.zero_grad()
     loss.backward()
     optim.step()
 
 
+class DQWrapper(ModWrapper):
+
+    def observation(self, observation: np.array) -> torch.Tensor:
+        flatboard = observation.reshape(-1).astype(np.float32)
+        my_tensor = torch.from_numpy(flatboard)
+        return my_tensor
+
+    def action(self, action: int) -> Tuple[int, int]:
+        new_action = tuple(np.unravel_index(action, self.unwrapped.board.shape))
+        return new_action
+
+    def reverse_action(self, action: Tuple[int, int]) -> int:
+        return self.unwrapped.board.shape[1] * action[0] + action[1]
+
+
 class DQTicTacTable(Agent):
     def wrapper(self, env):
-        return QtableWrapper(env)
+        return DQWrapper(env)
 
     def __init__(
         self, hidden_dim=3, lr=0.001, lr_gamma=0.9, lr_step=10, max_memory_size=50000
@@ -139,12 +157,12 @@ class DQTicTacTable(Agent):
         self.Q_1 = QNetwork(
             # Should improve these to acquire information from environment better
             action_dim=1,
-            state_dim=1,
+            state_dim=9,
             hidden_dim=hidden_dim,
         ).to(device)
         self.Q_2 = QNetwork(
             action_dim=1,
-            state_dim=1,
+            state_dim=9,
             hidden_dim=hidden_dim,
         ).to(device)
         update_parameters(self.Q_1, self.Q_2)
@@ -212,6 +230,7 @@ class DTicTacToeRunner:
         """"""
 
         results = np.zeros(num_episodes)
+        game_len = np.zeros(num_episodes)
 
         for i in range(num_episodes):
             self.env.reset()
@@ -225,14 +244,22 @@ class DTicTacToeRunner:
                 p1_state, self.agent1_env.valid_actions, model=self.agent1.Q_2
             )
             _, p1_reward, done, info = self.agent1_env.step(p1_action, 1)
+            logger.debug(f"Training: p1_action: {p1_action}")
+
 
             while True:
-
                 p2_state = self.agent2_env.get_observation()
                 p2_action = self.agent2.get_action(
                     p2_state, self.agent2_env.valid_actions, model=self.agent2.Q_2
                 )
-                _, reward, done, info = self.agent2_env.step(p2_action, -1)
+                logger.debug(f"Training: p2_action: {p2_action}")
+
+                if p2_action in self.agent2_env.valid_actions:
+                    _, reward, done, info = self.agent2_env.step(p2_action, -1)
+                else: 
+                    reward = 1
+                    done = True
+                    info = {}
 
                 if not done:
                     p1_qscore = reward + self.agent1.get_discounted_max(
@@ -251,7 +278,14 @@ class DTicTacToeRunner:
                 p1_action = self.agent1.get_action(
                     p1_state, self.agent1_env.valid_actions, model=self.agent1.Q_2
                 )
-                _, reward, done, info = self.agent1_env.step(p1_action, 1)
+                logger.debug(f"Training: p1_action: {p1_action}")
+
+                if p1_action in self.agent1_env.valid_actions:
+                    _, reward, done, info = self.agent1_env.step(p1_action, 1)
+                else:
+                    reward = -1
+                    done = True
+                    info = {}
 
                 if not done:
                     p2_qscore = reward * -1 + self.agent2.get_discounted_max(
@@ -265,6 +299,7 @@ class DTicTacToeRunner:
                     self.agent2.memory.is_done.append(True)
                     break
 
+            game_len[i] = self.agent1_env.unwrapped.turns_played
             results[i] = reward
             if i >= self.min_episodes and i % self.update_step == 0:
                 for _ in range(self.update_repeats):
@@ -297,6 +332,7 @@ class DTicTacToeRunner:
             f" crosses: {np.sum(results == 1):.2f}"
             f" naughts: {np.sum(results == -1):.2f}"
             f" draws: {np.sum(results == 0):.2f}"
+            f" num_turns: {np.average(game_len):.2f}"
         )
 
         return results

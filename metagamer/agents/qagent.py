@@ -27,9 +27,7 @@ class ModWrapper(gym.Wrapper):
         return self.observation(observation)
 
     def step(self, action, *args, **kwargs):
-        observation, reward, done, info = self.env.step(
-            self.action(action), *args, **kwargs
-        )
+        observation, reward, done, info = self.env.step(self.action(action), *args, **kwargs)
         return self.observation(observation), reward, done, info
 
     def get_observation(self):
@@ -271,9 +269,7 @@ class TicTacToeRunner:
             while True:
 
                 p2_state = self.agent2_env.get_observation()
-                p2_action = self.agent2.get_action(
-                    p2_state, self.agent2_env.valid_actions
-                )
+                p2_action = self.agent2.get_action(p2_state, self.agent2_env.valid_actions)
                 _, reward, done, info = self.agent2_env.step(p2_action, -1)
 
                 if not done:
@@ -288,9 +284,7 @@ class TicTacToeRunner:
                     break
 
                 p1_state = self.agent1_env.get_observation()
-                p1_action = self.agent1.get_action(
-                    p1_state, self.agent1_env.valid_actions
-                )
+                p1_action = self.agent1.get_action(p1_state, self.agent1_env.valid_actions)
                 _, reward, done, info = self.agent1_env.step(p1_action, 1)
 
                 if not done:
@@ -325,9 +319,7 @@ class TicTacToeRunner:
                     p1_state,
                     self.agent1_env.valid_actions,
                 )
-                p1_action = self.agent1.get_action(
-                    p1_state, self.agent1_env.valid_actions
-                )
+                p1_action = self.agent1.get_action(p1_state, self.agent1_env.valid_actions)
                 logger.info("p1_action: %s", p1_action)
 
                 _, reward, done, _ = self.agent1_env.step(p1_action, 1)
@@ -339,9 +331,7 @@ class TicTacToeRunner:
                     break
 
                 p2_state = self.agent2_env.get_observation()
-                p2_action = self.agent2.get_action(
-                    p2_state, self.agent2_env.valid_actions
-                )
+                p2_action = self.agent2.get_action(p2_state, self.agent2_env.valid_actions)
                 _, reward, done, _ = self.agent2_env.step(p2_action, -1)
 
                 self.env.render("human")
