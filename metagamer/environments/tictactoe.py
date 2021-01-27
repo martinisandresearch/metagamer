@@ -146,7 +146,9 @@ class TicTacToeEnv(gym.Env):
         action = tuple(action)
         logger.debug("Selected action: %s on turn %d", action, self.turns_played + 1)
         if self.board[action] != 0:
-            raise error.InvalidAction(f"action {action} is not a valid choice - try {self.valid_actions}")
+            raise error.InvalidAction(
+                f"action {action} is not a valid choice - try {self.valid_actions}"
+            )
         if self.done:
             raise error.ResetNeeded("Call reset as game is over")
         if player and player != self.curr_turn:

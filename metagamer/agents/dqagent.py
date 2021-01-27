@@ -11,7 +11,7 @@ from typing import Tuple, Optional, Any, Dict, Sequence, List
 import random
 import logging
 from metagamer.environments.tictactoe import TicTacToeEnv
-from metagamer.agents.qagent import Agent, ModWrapper,QtableWrapper
+from metagamer.agents.qagent import Agent, ModWrapper, QtableWrapper
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("tictrainer")
@@ -109,14 +109,12 @@ def update_parameters(current_model, target_model):
 def train_network(batch_size, current, target, optim, memory, gamma):
     optim.zero_grad()
 
-
     states, actions, next_states, rewards, is_done = memory.sample(batch_size)
 
     q_values = current(states)
 
     next_q_values = current(next_states)
     next_q_state_values = target(next_states)
-
 
     q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
     next_q_value = next_q_state_values.gather(
@@ -131,7 +129,6 @@ def train_network(batch_size, current, target, optim, memory, gamma):
 
 
 class DQWrapper(ModWrapper):
-
     def observation(self, observation: np.array) -> torch.Tensor:
         flatboard = observation.reshape(-1).astype(np.float32)
         my_tensor = torch.from_numpy(flatboard)
@@ -149,9 +146,7 @@ class DQTicTacTable(Agent):
     def wrapper(self, env):
         return DQWrapper(env)
 
-    def __init__(
-        self, hidden_dim=3, lr=0.001, lr_gamma=0.9, lr_step=10, max_memory_size=50000
-    ):
+    def __init__(self, hidden_dim=3, lr=0.001, lr_gamma=0.9, lr_step=10, max_memory_size=50000):
         super().__init__()
         env = TicTacToeEnv()
         self.Q_1 = QNetwork(
@@ -246,7 +241,6 @@ class DTicTacToeRunner:
             _, p1_reward, done, info = self.agent1_env.step(p1_action, 1)
             logger.debug(f"Training: p1_action: {p1_action}")
 
-
             while True:
                 p2_state = self.agent2_env.get_observation()
                 p2_action = self.agent2.get_action(
@@ -256,7 +250,7 @@ class DTicTacToeRunner:
 
                 if p2_action in self.agent2_env.valid_actions:
                     _, reward, done, info = self.agent2_env.step(p2_action, -1)
-                else: 
+                else:
                     reward = 1
                     done = True
                     info = {}
