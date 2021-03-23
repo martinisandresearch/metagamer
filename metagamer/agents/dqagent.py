@@ -146,17 +146,19 @@ class DQTicTacTable(Agent):
     def wrapper(self, env):
         return DQWrapper(env)
 
-    def __init__(self, hidden_dim=3, lr=0.001, lr_gamma=0.9, lr_step=10, max_memory_size=50000):
+    def __init__(
+        self, hidden_dim=3, lr=0.2, lr_gamma=0.9, lr_step=10, max_memory_size=50000
+    ):
         super().__init__()
         env = TicTacToeEnv()
         self.Q_1 = QNetwork(
             # Should improve these to acquire information from environment better
-            action_dim=1,
+            action_dim=9,
             state_dim=9,
             hidden_dim=hidden_dim,
         ).to(device)
         self.Q_2 = QNetwork(
-            action_dim=1,
+            action_dim=9,
             state_dim=9,
             hidden_dim=hidden_dim,
         ).to(device)
@@ -200,6 +202,24 @@ class DQTicTacTable(Agent):
             # no learning in eval mode
             return
         self.memory.update(state, action, value)
+
+    def get_max(self, state, **kwargs):
+        """Find the maximum reward that the Deep Q network thinks is possible from this state"""
+
+        # Unpack the model, fed in as kwarg.  This is clunky, should be reworked, as model is required
+        model = kwargs["model"]
+
+        state = torch.Tensor(state).to(device)
+
+        with torch.no_grad():
+            values = model(state)
+
+        return np.max(values.cpu().numpy())
+
+    def get_discounted_max(self, state, **kwargs):
+        """Here the discount can be provided for q value adaptations"""
+
+        return self.discount * self.get_max(state, **kwargs)
 
 
 class DTicTacToeRunner:
@@ -257,7 +277,7 @@ class DTicTacToeRunner:
 
                 if not done:
                     p1_qscore = reward + self.agent1.get_discounted_max(
-                        self.agent1_env.get_observation()
+                        self.agent1_env.get_observation(), model=self.agent1.Q_2
                     )
                     self.agent1.set_reward(p1_state, p1_action, p1_qscore)
 
@@ -283,7 +303,7 @@ class DTicTacToeRunner:
 
                 if not done:
                     p2_qscore = reward * -1 + self.agent2.get_discounted_max(
-                        self.agent2_env.get_observation()
+                        self.agent2_env.get_observation(), model=self.agent2.Q_2
                     )
                     self.agent2.set_reward(p2_state, p2_action, p2_qscore)
                 else:
@@ -295,6 +315,7 @@ class DTicTacToeRunner:
 
             game_len[i] = self.agent1_env.unwrapped.turns_played
             results[i] = reward
+            logger.debug("Result is: %s", reward)
             if i >= self.min_episodes and i % self.update_step == 0:
                 for _ in range(self.update_repeats):
                     train_network(
@@ -323,8 +344,8 @@ class DTicTacToeRunner:
             self.agent2.scheduler.step()
         print(
             f"games {num_episodes}"
-            f" crosses: {np.sum(results == 1):.2f}"
-            f" naughts: {np.sum(results == -1):.2f}"
+            f" p1: {np.sum(results == 1):.2f}"
+            f" p2: {np.sum(results == -1):.2f}"
             f" draws: {np.sum(results == 0):.2f}"
             f" num_turns: {np.average(game_len):.2f}"
         )
