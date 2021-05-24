@@ -236,7 +236,7 @@ class DTicTacToeRunner:
 
         self.measure_step = 50
         self.measure_repeats = 100
-        self.min_episodes = 100
+        self.min_episodes = 10
         self.update_step = 5
         self.update_repeats = 10
         self.batch_size = 1
