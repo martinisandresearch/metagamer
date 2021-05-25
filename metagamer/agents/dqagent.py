@@ -51,6 +51,16 @@ class Memory:
         self.action = collections.deque(maxlen=len)
         self.is_done = collections.deque(maxlen=len)
 
+    def _check(self):
+        ans = len(self.rewards) == len(self.is_done)
+        if not ans:
+            raise ValueError("Rewards and done not in sync")
+
+    def set_episode_is_done(self):
+        self.is_done.pop()
+        self.is_done.append(True)
+        self._check()
+
     def update(self, state, action, reward):
         # if the episode is finished we do not save to new state. Otherwise we have more states per episode than rewards
         # and actions whcih leads to a mismatch when we sample from memory.
@@ -58,20 +68,22 @@ class Memory:
         self.action.append(action)
         self.rewards.append(reward)
         self.is_done.append(False)
+        self._check()
 
     def sample(self, batch_size):
         """
         sample "batch_size" many (state, action, reward, next state, is_done) datapoints.
         """
+        self._check()
         n = len(self.is_done)
         idx = random.sample(range(0, n - 1), batch_size)
 
         return (
-            torch.Tensor(self.state)[idx].to(device),
+            torch.stack(tuple(self.state))[idx].to(device),
             torch.LongTensor(self.action)[idx].to(device),
-            torch.Tensor(self.state)[1 + np.array(idx)].to(device),
-            torch.Tensor(self.rewards)[idx].to(device),
-            torch.Tensor(self.is_done)[idx].to(device),
+            torch.stack(tuple(self.state))[1 + np.array(idx)].to(device),
+            torch.FloatTensor(self.rewards)[idx].to(device),
+            torch.BoolTensor(self.is_done)[idx].to(device),
         )
 
     def reset(self):
@@ -120,7 +132,7 @@ def train_network(batch_size, current, target, optim, memory, gamma):
     next_q_value = next_q_state_values.gather(
         1, torch.max(next_q_values, 1)[1].unsqueeze(1)
     ).squeeze(1)
-    expected_q_value = rewards + gamma * next_q_value * (1 - is_done)
+    expected_q_value = rewards + gamma * next_q_value * (1 - is_done.type(torch.int))
 
     loss = (q_value - expected_q_value.detach()).pow(2).mean()
 
@@ -142,7 +154,7 @@ class DQWrapper(ModWrapper):
         return self.unwrapped.board.shape[1] * action[0] + action[1]
 
 
-class DQTicTacTable(Agent):
+class DQTicTacNetwork(Agent):
     def wrapper(self, env):
         return DQWrapper(env)
 
@@ -193,7 +205,7 @@ class DQTicTacTable(Agent):
             action = np.argmax(values.cpu().numpy())
         return action
 
-    def set_reward(self, state: str, action: int, value: float):
+    def set_reward(self, state: torch.Tensor, action: int, value: float):
         """
         Only allowed to set a state, value pair.
         Update is as per alpha value
@@ -223,7 +235,7 @@ class DQTicTacTable(Agent):
 
 
 class DTicTacToeRunner:
-    def __init__(self, agent1: DQTicTacTable, agent2: DQTicTacTable):
+    def __init__(self, agent1: DQTicTacNetwork, agent2: DQTicTacNetwork):
         self.env = TicTacToeEnv()
         # player order
         self.agent1 = agent1
@@ -239,19 +251,17 @@ class DTicTacToeRunner:
         self.min_episodes = 10
         self.update_step = 5
         self.update_repeats = 10
-        self.batch_size = 1
+        self.batch_size = 25
 
     def train(self, num_episodes):
         """"""
+        assert num_episodes > self.min_episodes
 
         results = np.zeros(num_episodes)
         game_len = np.zeros(num_episodes)
 
         for i in range(num_episodes):
             self.env.reset()
-            state = self.env.reset()
-            self.agent1.memory.state.append(state)
-            self.agent2.memory.state.append(state)
             # run first two moves
 
             p1_state = self.agent1_env.get_observation()
@@ -283,9 +293,9 @@ class DTicTacToeRunner:
 
                 else:
                     self.agent1.set_reward(p1_state, p1_action, reward)
-                    self.agent1.memory.is_done.append(True)
+                    self.agent1.memory.set_episode_is_done()
                     self.agent2.set_reward(p2_state, p2_action, reward * -1)
-                    self.agent2.memory.is_done.append(True)
+                    self.agent2.memory.set_episode_is_done()
                     break
 
                 p1_state = self.agent1_env.get_observation()
@@ -308,9 +318,11 @@ class DTicTacToeRunner:
                     self.agent2.set_reward(p2_state, p2_action, p2_qscore)
                 else:
                     self.agent1.set_reward(p1_state, p1_action, reward)
-                    self.agent1.memory.is_done.append(True)
+                    # pop the false that set_reward
+                    self.agent1.memory.set_episode_is_done()
+
                     self.agent2.set_reward(p2_state, p2_action, reward * -1)
-                    self.agent2.memory.is_done.append(True)
+                    self.agent2.memory.set_episode_is_done()
                     break
 
             game_len[i] = self.agent1_env.unwrapped.turns_played
