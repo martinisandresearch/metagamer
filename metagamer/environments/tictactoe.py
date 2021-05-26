@@ -90,7 +90,7 @@ def to_one_hot(board: np.array) -> np.array:
 
 
 def to_human(board: np.array, symbols) -> np.array:
-    """Convert this into a """
+    """Convert this into a"""
     human_board = np.full(board.shape, " ")
     for value, sym in symbols.items():
         human_board[np.where(board == value)] = sym
