@@ -45,7 +45,8 @@ class Memory:
     memory to save the state, action, reward sequence from the current episode.
     """
 
-    def __init__(self, len):
+    def __init__(self, len: int, name: str):
+        self.name = name
         self.rewards = collections.deque(maxlen=len)
         self.state = collections.deque(maxlen=len)
         self.action = collections.deque(maxlen=len)
@@ -124,20 +125,31 @@ def train_network(batch_size, current, target, optim, memory, gamma):
     states, actions, next_states, rewards, is_done = memory.sample(batch_size)
 
     q_values = current(states)
-
+    if torch.max(torch.abs(q_values)) > 1:
+        check = torch.max(torch.abs(q_values))
     next_q_values = current(next_states)
+    check1 = torch.max(torch.abs(next_q_values))
     next_q_state_values = target(next_states)
+    check2 = torch.max(torch.abs(next_q_state_values))
 
     q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
     next_q_value = next_q_state_values.gather(
         1, torch.max(next_q_values, 1)[1].unsqueeze(1)
     ).squeeze(1)
+    check3 = torch.max(torch.abs(next_q_value))
     expected_q_value = rewards + gamma * next_q_value * (1 - is_done.type(torch.int))
+    check4 = torch.max(torch.abs(expected_q_value))
 
     loss = (q_value - expected_q_value.detach()).pow(2).mean()
+    check5 = torch.max(torch.abs(loss))
+    meanloss = np.mean(loss.item())
+    minloss = np.min(loss.item())
+    maxloss = np.max(loss.item())
 
     loss.backward()
     optim.step()
+
+    return minloss, meanloss, maxloss
 
 
 class DQWrapper(ModWrapper):
@@ -159,7 +171,13 @@ class DQTicTacNetwork(Agent):
         return DQWrapper(env)
 
     def __init__(
-        self, hidden_dim=3, lr=0.2, lr_gamma=0.9, lr_step=10, max_memory_size=50000
+        self,
+        name: str,
+        hidden_dim=3,
+        lr=0.2,
+        lr_gamma=0.1,
+        lr_step=10,
+        max_memory_size=50000,
     ):
         super().__init__()
         env = TicTacToeEnv()
@@ -179,10 +197,11 @@ class DQTicTacNetwork(Agent):
         for param in self.Q_2.parameters():
             param.requires_grad = False
 
+        self.name = name
         self.optimizer = torch.optim.Adam(self.Q_1.parameters(), lr=lr)
         self.scheduler = StepLR(self.optimizer, step_size=lr_step, gamma=lr_gamma)
         self.gamma = 0.99
-        self.memory = Memory(max_memory_size)
+        self.memory = Memory(max_memory_size, name=name)
         self.performance = []
 
     def get_action(self, state, valid_actions, **kwargs):
@@ -225,6 +244,9 @@ class DQTicTacNetwork(Agent):
 
         with torch.no_grad():
             values = model(state)
+        cpuvals = values.cpu()
+        numpyvals = cpuvals.numpy()
+        returnval = np.max(numpyvals)
 
         return np.max(values.cpu().numpy())
 
@@ -239,7 +261,13 @@ class DTicTacToeRunner:
         self.env = TicTacToeEnv()
         # player order
         self.agent1 = agent1
+        self.agent1minloss = []
+        self.agent1meanloss = []
+        self.agent1maxloss = []
         self.agent2 = agent2
+        self.agent2minloss = []
+        self.agent2meanloss = []
+        self.agent2maxloss = []
 
         # interact with the same environment, but through their preferred representation
         self.agent1_env = self.agent1.wrapper(self.env)
@@ -289,7 +317,7 @@ class DTicTacToeRunner:
                     p1_qscore = reward + self.agent1.get_discounted_max(
                         self.agent1_env.get_observation(), model=self.agent1.Q_2
                     )
-                    self.agent1.set_reward(p1_state, p1_action, p1_qscore)
+                    self.agent1.set_reward(p1_state, p1_action, 0)
 
                 else:
                     self.agent1.set_reward(p1_state, p1_action, reward)
@@ -315,7 +343,7 @@ class DTicTacToeRunner:
                     p2_qscore = reward * -1 + self.agent2.get_discounted_max(
                         self.agent2_env.get_observation(), model=self.agent2.Q_2
                     )
-                    self.agent2.set_reward(p2_state, p2_action, p2_qscore)
+                    self.agent2.set_reward(p2_state, p2_action, 0)
                 else:
                     self.agent1.set_reward(p1_state, p1_action, reward)
                     # pop the false that set_reward
@@ -330,7 +358,7 @@ class DTicTacToeRunner:
             logger.debug("Result is: %s", reward)
             if i >= self.min_episodes and i % self.update_step == 0:
                 for _ in range(self.update_repeats):
-                    train_network(
+                    minloss, meanloss, maxloss = train_network(
                         self.batch_size,
                         self.agent1.Q_1,
                         self.agent1.Q_2,
@@ -338,7 +366,10 @@ class DTicTacToeRunner:
                         self.agent1.memory,
                         self.agent1.gamma,
                     )
-                    train_network(
+                    self.agent1minloss.append(minloss)
+                    self.agent1meanloss.append(meanloss)
+                    self.agent1maxloss.append(maxloss)
+                    minloss, meanloss, maxloss = train_network(
                         self.batch_size,
                         self.agent2.Q_1,
                         self.agent2.Q_2,
@@ -346,6 +377,9 @@ class DTicTacToeRunner:
                         self.agent2.memory,
                         self.agent2.gamma,
                     )
+                    self.agent2minloss.append(minloss)
+                    self.agent2meanloss.append(meanloss)
+                    self.agent2maxloss.append(maxloss)
 
                 # transfer new parameter from Q_1 to Q_2
                 update_parameters(self.agent1.Q_1, self.agent1.Q_2)

@@ -1,6 +1,8 @@
 gym
 numpy
 tabulate
+matplotlib
+pandas
 
 # dev
 pytest
