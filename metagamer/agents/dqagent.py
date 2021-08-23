@@ -29,13 +29,17 @@ class QNetwork(nn.Module):
 
         self.fc_1 = nn.Linear(state_dim, hidden_dim)
         self.fc_2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc_3 = nn.Linear(hidden_dim, action_dim)
+        self.fc_3 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_4 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_5 = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, inp):
 
         x1 = F.leaky_relu(self.fc_1(inp))
         x1 = F.leaky_relu(self.fc_2(x1))
-        x1 = self.fc_3(x1)
+        x1 = F.leaky_relu(self.fc_3(x1))
+        x1 = F.leaky_relu(self.fc_4(x1))
+        x1 = self.fc_5(x1)
 
         return x1
 
@@ -125,31 +129,22 @@ def train_network(batch_size, current, target, optim, memory, gamma):
     states, actions, next_states, rewards, is_done = memory.sample(batch_size)
 
     q_values = current(states)
-    if torch.max(torch.abs(q_values)) > 1:
-        check = torch.max(torch.abs(q_values))
     next_q_values = current(next_states)
-    check1 = torch.max(torch.abs(next_q_values))
     next_q_state_values = target(next_states)
-    check2 = torch.max(torch.abs(next_q_state_values))
 
     q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
     next_q_value = next_q_state_values.gather(
         1, torch.max(next_q_values, 1)[1].unsqueeze(1)
     ).squeeze(1)
-    check3 = torch.max(torch.abs(next_q_value))
     expected_q_value = rewards + gamma * next_q_value * (1 - is_done.type(torch.int))
-    check4 = torch.max(torch.abs(expected_q_value))
 
     loss = (q_value - expected_q_value.detach()).pow(2).mean()
-    check5 = torch.max(torch.abs(loss))
     meanloss = np.mean(loss.item())
-    minloss = np.min(loss.item())
-    maxloss = np.max(loss.item())
 
     loss.backward()
     optim.step()
 
-    return minloss, meanloss, maxloss
+    return meanloss
 
 
 class DQWrapper(ModWrapper):
@@ -201,6 +196,7 @@ class DQTicTacNetwork(Agent):
         self.optimizer = torch.optim.Adam(self.Q_1.parameters(), lr=lr)
         self.scheduler = StepLR(self.optimizer, step_size=lr_step, gamma=lr_gamma)
         self.gamma = 0.99
+        self.positive_greedy = False
         self.memory = Memory(max_memory_size, name=name)
         self.performance = []
 
@@ -219,7 +215,10 @@ class DQTicTacNetwork(Agent):
 
         # select a random action wih probability epsilon
         if random.random() <= self.epsilon:
-            action = random.choice(valid_actions)
+            if self.positive_greedy and np.max(values.cpu().numpy()) > 0:
+                action = random.choice(np.where(values.numpy() > 0)[0])
+            else:
+                action = random.choice(valid_actions)
         else:
             action = np.argmax(values.cpu().numpy())
         return action
@@ -280,10 +279,23 @@ class DTicTacToeRunner:
         self.update_step = 5
         self.update_repeats = 10
         self.batch_size = 25
+        self.draw_reward = 0.0
+
+    def wind_up_episode(self, reward, p1_state, p1_action, p2_state, p2_action):
+        if reward == 0:
+            # This is draw condition, game is exhausted, both players score
+            self.agent1.set_reward(p1_state, p1_action, self.draw_reward)
+            self.agent2.set_reward(p2_state, p2_action, self.draw_reward)
+        else:
+            self.agent1.set_reward(p1_state, p1_action, reward)
+            self.agent2.set_reward(p2_state, p2_action, reward * -1)
+
+        self.agent1.memory.set_episode_is_done()
+        self.agent2.memory.set_episode_is_done()
 
     def train(self, num_episodes):
         """"""
-        assert num_episodes > self.min_episodes
+        # assert num_episodes > self.min_episodes
 
         results = np.zeros(num_episodes)
         game_len = np.zeros(num_episodes)
@@ -314,16 +326,12 @@ class DTicTacToeRunner:
                     info = {}
 
                 if not done:
-                    p1_qscore = reward + self.agent1.get_discounted_max(
-                        self.agent1_env.get_observation(), model=self.agent1.Q_2
-                    )
                     self.agent1.set_reward(p1_state, p1_action, 0)
 
                 else:
-                    self.agent1.set_reward(p1_state, p1_action, reward)
-                    self.agent1.memory.set_episode_is_done()
-                    self.agent2.set_reward(p2_state, p2_action, reward * -1)
-                    self.agent2.memory.set_episode_is_done()
+                    self.wind_up_episode(
+                        reward, p1_state, p1_action, p2_state, p2_action
+                    )
                     break
 
                 p1_state = self.agent1_env.get_observation()
@@ -340,54 +348,54 @@ class DTicTacToeRunner:
                     info = {}
 
                 if not done:
-                    p2_qscore = reward * -1 + self.agent2.get_discounted_max(
-                        self.agent2_env.get_observation(), model=self.agent2.Q_2
-                    )
                     self.agent2.set_reward(p2_state, p2_action, 0)
                 else:
-                    self.agent1.set_reward(p1_state, p1_action, reward)
-                    # pop the false that set_reward
-                    self.agent1.memory.set_episode_is_done()
-
-                    self.agent2.set_reward(p2_state, p2_action, reward * -1)
-                    self.agent2.memory.set_episode_is_done()
+                    self.wind_up_episode(
+                        reward, p1_state, p1_action, p2_state, p2_action
+                    )
                     break
 
             game_len[i] = self.agent1_env.unwrapped.turns_played
             results[i] = reward
             logger.debug("Result is: %s", reward)
-            if i >= self.min_episodes and i % self.update_step == 0:
+            if i % self.update_step == 0:
                 for _ in range(self.update_repeats):
-                    minloss, meanloss, maxloss = train_network(
-                        self.batch_size,
-                        self.agent1.Q_1,
-                        self.agent1.Q_2,
-                        self.agent1.optimizer,
-                        self.agent1.memory,
-                        self.agent1.gamma,
-                    )
-                    self.agent1minloss.append(minloss)
-                    self.agent1meanloss.append(meanloss)
-                    self.agent1maxloss.append(maxloss)
-                    minloss, meanloss, maxloss = train_network(
-                        self.batch_size,
-                        self.agent2.Q_1,
-                        self.agent2.Q_2,
-                        self.agent2.optimizer,
-                        self.agent2.memory,
-                        self.agent2.gamma,
-                    )
-                    self.agent2minloss.append(minloss)
-                    self.agent2meanloss.append(meanloss)
-                    self.agent2maxloss.append(maxloss)
+                    if (
+                        sum(self.agent1.memory.is_done) > self.min_episodes
+                        and self.agent1.train
+                    ):
+                        meanloss = train_network(
+                            self.batch_size,
+                            self.agent1.Q_1,
+                            self.agent1.Q_2,
+                            self.agent1.optimizer,
+                            self.agent1.memory,
+                            self.agent1.gamma,
+                        )
+                        self.agent1meanloss.append(meanloss)
+                        self.agent1.scheduler.step()
+
+                    if (
+                        sum(self.agent2.memory.is_done) > self.min_episodes
+                        and self.agent2.train
+                    ):
+                        meanloss = train_network(
+                            self.batch_size,
+                            self.agent2.Q_1,
+                            self.agent2.Q_2,
+                            self.agent2.optimizer,
+                            self.agent2.memory,
+                            self.agent2.gamma,
+                        )
+                        self.agent2meanloss.append(meanloss)
+                        self.agent2.scheduler.step()
 
                 # transfer new parameter from Q_1 to Q_2
                 update_parameters(self.agent1.Q_1, self.agent1.Q_2)
                 update_parameters(self.agent2.Q_1, self.agent2.Q_2)
 
                 # update learning rate and eps
-            self.agent1.scheduler.step()
-            self.agent2.scheduler.step()
+
         print(
             f"games {num_episodes}"
             f" p1: {np.sum(results == 1):.2f}"
