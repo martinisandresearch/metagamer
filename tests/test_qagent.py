@@ -12,7 +12,7 @@ def test_pure_self_play():
         p1.epsilon = (nr - 1 - i) / nr
         p2.epsilon = (nr - 1 - i) / nr
         print("epsilon", p1.epsilon, end=" ")
-        new_dome.train(100)
+        new_dome.train(200)
     print("\nNo training")
     p1.train = False
     p2.train = False

@@ -91,6 +91,44 @@ class Memory:
             torch.BoolTensor(self.is_done)[idx].to(device),
         )
 
+    def flat_length_sample(self, batch_size):
+        """
+        This is an alternative sampling method which first assesses how many different lengths of play the
+        states represent by taking the sum of the absolute value of the states.
+        (which works for states -1, 0, 1, as we have in tic tac toe)
+        Then we seek to sample that is 'flat' across game lengths, so we can't be caught only sampling from very
+        short games.
+        Args:
+            batch_size: Total number samples of states (and action, next_state reward etc) pairs sets to take
+
+        Returns: tuple of five parts, representing state, action, next_state, rewards, is_done
+
+        """
+        # find count how many positions are taken in each state, and figure out how many unique there are
+        game_lengths = [abs(x.numpy()).sum() for x in self.state]
+        game_lengths.pop(-1)
+        unique_lengths = set(game_lengths)
+        subsets = len(unique_lengths)
+        samples_per_subset = int(batch_size / subsets)
+
+        # Then walk through each length of game, and add some of each game length to the final list of indices
+        idx = []
+        for length in unique_lengths:
+            indices = [i for i, x in enumerate(game_lengths) if x == length]
+            if len(indices) <= samples_per_subset:
+                idx.extend(indices)
+            else:
+                idx.extend(random.sample(indices, samples_per_subset))
+
+        # Then return this sample
+        return (
+            torch.stack(tuple(self.state))[idx].to(device),
+            torch.LongTensor(self.action)[idx].to(device),
+            torch.stack(tuple(self.state))[1 + np.array(idx)].to(device),
+            torch.FloatTensor(self.rewards)[idx].to(device),
+            torch.BoolTensor(self.is_done)[idx].to(device),
+        )
+
     def reset(self):
         self.rewards.clear()
         self.state.clear()
@@ -126,7 +164,9 @@ def update_parameters(current_model, target_model):
 def train_network(batch_size, current, target, optim, memory, gamma):
     optim.zero_grad()
 
-    states, actions, next_states, rewards, is_done = memory.sample(batch_size)
+    states, actions, next_states, rewards, is_done = memory.flat_length_sample(
+        batch_size
+    )
 
     q_values = current(states)
     next_q_values = current(next_states)
@@ -405,3 +445,41 @@ class DTicTacToeRunner:
         )
 
         return results
+
+    def run(self):
+        done = False
+        with self.agent1.exploit_mode(), self.agent2.exploit_mode():
+            self.env.reset()
+            while not done:
+                p1_state = self.agent1_env.get_observation()
+                logger.info(
+                    "p1_state: '%s', valid_actions: %s",
+                    p1_state,
+                    self.agent1_env.valid_actions,
+                )
+                p1_action = self.agent1.get_action(
+                    p1_state, self.agent1_env.valid_actions, model=self.agent1.Q_2
+                )
+                logger.info("p1_action: %s", p1_action)
+
+                _, reward, done, _ = self.agent1_env.step(p1_action, 1)
+                logger.info("p1 reward: %s, done: %s", reward, done)
+
+                self.env.render("human")
+
+                if done:
+                    break
+
+                p2_state = self.agent2_env.get_observation()
+                p2_action = self.agent2.get_action(
+                    p2_state, self.agent2_env.valid_actions, model=self.agent2.Q_2
+                )
+                _, reward, done, _ = self.agent2_env.step(p2_action, -1)
+
+                self.env.render("human")
+                if done:
+                    break
+            print(f"Result was : {reward}")
+
+        self.agent1.train = True
+        self.agent2.train = True

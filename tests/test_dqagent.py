@@ -12,9 +12,9 @@ def test_pure_self_play():
         lr=0.005,
         lr_gamma=0.99,
         lr_step=10,
-        max_memory_size=550,
+        max_memory_size=5500,
     )
-    p1.gamma = 0.6
+    p1.gamma = 0.3
 
     p2 = dqagent.DQTicTacNetwork(
         name="P2",
@@ -22,16 +22,16 @@ def test_pure_self_play():
         lr=0.005,
         lr_gamma=0.99,
         lr_step=10,
-        max_memory_size=550,
+        max_memory_size=5500,
     )
-    p2.gamma = 0.6
+    p2.gamma = 0.3
 
     new_dome = dqagent.DTicTacToeRunner(p1, p2)
     new_dome.min_episodes = 100
     new_dome.update_step = 10
     new_dome.update_repeats = 20
     new_dome.batch_size = 100
-    new_dome.draw_reward = 0.0
+    new_dome.draw_reward = 1.0
     nr = 3
     starting_eps = 0.8
     p2.train = True
@@ -86,3 +86,5 @@ def test_pure_self_play():
     # print(p2.Q_1(torch.zeros(9)))
     print(p2.Q_2(torch.zeros(9)))
     print(p2.Q_2(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 0.0, -1.0, -1.0, 0.0])))
+
+    new_dome.run()
