@@ -164,9 +164,7 @@ def update_parameters(current_model, target_model):
 def train_network(batch_size, current, target, optim, memory, gamma):
     optim.zero_grad()
 
-    states, actions, next_states, rewards, is_done = memory.flat_length_sample(
-        batch_size
-    )
+    states, actions, next_states, rewards, is_done = memory.sample(batch_size)
 
     q_values = current(states)
     next_q_values = current(next_states)
@@ -234,7 +232,7 @@ class DQTicTacNetwork(Agent):
 
         self.name = name
         self.optimizer = torch.optim.Adam(self.Q_1.parameters(), lr=lr)
-        self.scheduler = StepLR(self.optimizer, step_size=lr_step, gamma=lr_gamma)
+        self.scheduler = StepLR(self.optimizer, step_size=lr_step, gamma=1)
         self.gamma = 0.99
         self.positive_greedy = False
         self.memory = Memory(max_memory_size, name=name)
@@ -346,7 +344,7 @@ class DTicTacToeRunner:
 
             p1_state = self.agent1_env.get_observation()
             p1_action = self.agent1.get_action(
-                p1_state, self.agent1_env.valid_actions, model=self.agent1.Q_2
+                p1_state, self.agent1_env.all_actions, model=self.agent1.Q_2
             )
             _, p1_reward, done, info = self.agent1_env.step(p1_action, 1)
             logger.debug(f"Training: p1_action: {p1_action}")
@@ -354,7 +352,7 @@ class DTicTacToeRunner:
             while True:
                 p2_state = self.agent2_env.get_observation()
                 p2_action = self.agent2.get_action(
-                    p2_state, self.agent2_env.valid_actions, model=self.agent2.Q_2
+                    p2_state, self.agent2_env.all_actions, model=self.agent2.Q_2
                 )
                 logger.debug(f"Training: p2_action: {p2_action}")
 
@@ -376,7 +374,7 @@ class DTicTacToeRunner:
 
                 p1_state = self.agent1_env.get_observation()
                 p1_action = self.agent1.get_action(
-                    p1_state, self.agent1_env.valid_actions, model=self.agent1.Q_2
+                    p1_state, self.agent1_env.all_actions, model=self.agent1.Q_2
                 )
                 logger.debug(f"Training: p1_action: {p1_action}")
 
@@ -458,7 +456,7 @@ class DTicTacToeRunner:
                     self.agent1_env.valid_actions,
                 )
                 p1_action = self.agent1.get_action(
-                    p1_state, self.agent1_env.valid_actions, model=self.agent1.Q_2
+                    p1_state, self.agent1_env.all_actions, model=self.agent1.Q_2
                 )
                 logger.info("p1_action: %s", p1_action)
 
@@ -472,7 +470,7 @@ class DTicTacToeRunner:
 
                 p2_state = self.agent2_env.get_observation()
                 p2_action = self.agent2.get_action(
-                    p2_state, self.agent2_env.valid_actions, model=self.agent2.Q_2
+                    p2_state, self.agent2_env.all_actions, model=self.agent2.Q_2
                 )
                 _, reward, done, _ = self.agent2_env.step(p2_action, -1)
 
