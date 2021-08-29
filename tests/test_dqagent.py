@@ -11,8 +11,8 @@ def test_pure_self_play():
         hidden_dim=27,
         lr=0.005,
         lr_gamma=0.99,
-        lr_step=10,
-        max_memory_size=4000,
+        lr_step=100,
+        max_memory_size=7000,
     )
     p1.gamma = 0.6
 
@@ -21,8 +21,8 @@ def test_pure_self_play():
         hidden_dim=27,
         lr=0.005,
         lr_gamma=0.99,
-        lr_step=10,
-        max_memory_size=4000,
+        lr_step=100,
+        max_memory_size=7000,
     )
     p2.gamma = 0.6
 
@@ -33,49 +33,56 @@ def test_pure_self_play():
     new_dome.batch_size = 100
     new_dome.draw_reward = 1.0
 
-    nr = 3
     starting_eps = 0.8
     p2.train = True
     p1.train = True
-    # for i in range(int(nr)+1):
-    #     p1.epsilon = starting_eps*(nr-i)/nr
-    #     p2.epsilon = starting_eps*(nr-i)/nr
-    #     print(f"epsilon {p1.epsilon:.2f}", end=" ")
-    #     new_dome.train(100)
     p1.epsilon = starting_eps
     p2.epsilon = starting_eps
-
     print(f"epsilon {p1.epsilon:.2f}", end=" ")
-    new_dome.train(800)
-
+    new_dome.train(400)
     p1.epsilon = 0.5
     p2.epsilon = 0.5
     print(f"epsilon {p1.epsilon:.2f}", end=" ")
     new_dome.train(400)
-    # p1.positive_greedy = True
-    # p2.positive_greedy = True
-
-    # p1.epsilon = 0.2
-    # p2.epsilon = 0.2
-    # print(f"epsilon {p1.epsilon:.2f}", end=" ")
-    # new_dome.train(150)
     p1.epsilon = 0.2
     p2.epsilon = 0.2
     print(f"epsilon {p1.epsilon:.2f}", end=" ")
-    new_dome.train(400)
-    # p1.epsilon = 0.1
-    # p2.epsilon = 0.1
-    # print(f"epsilon {p1.epsilon:.2f}", end=" ")
-    # new_dome.train(80)
+    new_dome.train(800)
     p1.epsilon = 0.05
     p2.epsilon = 0.05
     print(f"epsilon {p1.epsilon:.2f}", end=" ")
+    new_dome.batch_size = 128
+    new_dome.update_repeats = 30
+    new_dome.train(2000)
+    p1.epsilon = 0.01
+    p2.epsilon = 0.01
+    new_dome.batch_size = 130
+    print(f"epsilon {p1.epsilon:.2f}", end=" ")
+    new_dome.train(1500)
+    p1.positive_greedy = True
+    p2.positive_greedy = True
+    p1.epsilon = 0.05
+    p2.epsilon = 0.05
+    print(f"epsilon {p1.epsilon:.2f}", end=" ")
+    new_dome.train(1000)
+    p1.positive_greedy = False
+    p2.positive_greedy = False
+    p1.epsilon = 0.01
+    p2.epsilon = 0.01
+    print(f"epsilon {p1.epsilon:.2f}", end=" ")
+    new_dome.train(1000)
+    p1.gamma = 0.8
+    p2.gamma = 0.8
+    p1.epsilon = 0.0
+    p2.epsilon = 0.0
     new_dome.train(1000)
 
     loss_df = pd.DataFrame(
         {
             "P1mean": new_dome.agent1meanloss,
             "P2mean": new_dome.agent2meanloss,
+            "P1umoves": new_dome.agent1unique_moves_frac,
+            "P2umoves": new_dome.agent2unique_moves_frac,
         }
     )
     loss_df.plot()
@@ -87,15 +94,14 @@ def test_pure_self_play():
     # print(p1.Q_1(torch.zeros(9)))
     print(p1.Q_2(torch.zeros(9)))
     print(p1.Q_2(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 0.0, -1.0, -1.0, 0.0])))
-    # tensor([-6.9808e-01, 1.3359e-03, -1.5508e-01,
-    #                -1.2238e+00, -1.5539e+00,  5.8003e-01,
-    #                 -5.2739e-01, -1.0781e+00, -7.0096e-01])
+    # tensor([0.5591, -0.8117, 0.0979,
+    #         -0.5002, -1.1774, -0.1033,
+    #         -2.0456, -1.0836, 0.6419])
     # print(p2.Q_1(torch.zeros(9)))
     print(p2.Q_2(torch.zeros(9)))
     print(p2.Q_2(torch.tensor([0.0, 1.0, 0.0, 1.0, 1.0, 0.0, -1.0, -1.0, 0.0])))
-    # #
-    # tensor([-0.5150, -1.0812, 0.1013,
-    # -0.2387, 0.1110, -0.6354,
-    # -0.6491, -1.1317,-0.5774])
+    # tensor([-0.0150, 0.1610, 0.3941,
+    #         0.3336, -0.1797, -0.6697,
+    #         0.6472, -0.6193, -0.0606])
 
     new_dome.run()

@@ -164,7 +164,9 @@ def update_parameters(current_model, target_model):
 def train_network(batch_size, current, target, optim, memory, gamma):
     optim.zero_grad()
 
-    states, actions, next_states, rewards, is_done = memory.sample(batch_size)
+    states, actions, next_states, rewards, is_done = memory.flat_length_sample(
+        batch_size
+    )
 
     q_values = current(states)
     next_q_values = current(next_states)
@@ -178,11 +180,11 @@ def train_network(batch_size, current, target, optim, memory, gamma):
 
     loss = (q_value - expected_q_value.detach()).pow(2).mean()
     meanloss = np.mean(loss.item())
-
+    unique_moves_frac = len(set(zip(states, actions))) / batch_size
     loss.backward()
     optim.step()
 
-    return meanloss
+    return meanloss, unique_moves_frac
 
 
 class DQWrapper(ModWrapper):
@@ -232,7 +234,7 @@ class DQTicTacNetwork(Agent):
 
         self.name = name
         self.optimizer = torch.optim.Adam(self.Q_1.parameters(), lr=lr)
-        self.scheduler = StepLR(self.optimizer, step_size=lr_step, gamma=1)
+        self.scheduler = StepLR(self.optimizer, step_size=lr_step, gamma=lr_gamma)
         self.gamma = 0.99
         self.positive_greedy = False
         self.memory = Memory(max_memory_size, name=name)
@@ -298,13 +300,11 @@ class DTicTacToeRunner:
         self.env = TicTacToeEnv()
         # player order
         self.agent1 = agent1
-        self.agent1minloss = []
         self.agent1meanloss = []
-        self.agent1maxloss = []
+        self.agent1unique_moves_frac = []
         self.agent2 = agent2
-        self.agent2minloss = []
         self.agent2meanloss = []
-        self.agent2maxloss = []
+        self.agent2unique_moves_frac = []
 
         # interact with the same environment, but through their preferred representation
         self.agent1_env = self.agent1.wrapper(self.env)
@@ -402,7 +402,7 @@ class DTicTacToeRunner:
                         sum(self.agent1.memory.is_done) > self.min_episodes
                         and self.agent1.train
                     ):
-                        meanloss = train_network(
+                        meanloss, unique_moves_frac = train_network(
                             self.batch_size,
                             self.agent1.Q_1,
                             self.agent1.Q_2,
@@ -411,13 +411,14 @@ class DTicTacToeRunner:
                             self.agent1.gamma,
                         )
                         self.agent1meanloss.append(meanloss)
+                        self.agent1unique_moves_frac.append(unique_moves_frac)
                         self.agent1.scheduler.step()
 
                     if (
                         sum(self.agent2.memory.is_done) > self.min_episodes
                         and self.agent2.train
                     ):
-                        meanloss = train_network(
+                        meanloss, unique_moves_frac = train_network(
                             self.batch_size,
                             self.agent2.Q_1,
                             self.agent2.Q_2,
@@ -426,6 +427,7 @@ class DTicTacToeRunner:
                             self.agent2.gamma,
                         )
                         self.agent2meanloss.append(meanloss)
+                        self.agent2unique_moves_frac.append(unique_moves_frac)
                         self.agent2.scheduler.step()
 
                 # transfer new parameter from Q_1 to Q_2
