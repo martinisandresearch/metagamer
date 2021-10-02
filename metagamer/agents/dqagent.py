@@ -247,20 +247,20 @@ class DQTicTacNetwork(Agent):
 
         state = torch.Tensor(state).to(device)
         with torch.no_grad():
-            values = model(state)
+            values = model(state).cpu().numpy()
 
         # If we're just evaluating, not training, just get the best available
         if self.eval:
-            return np.argmax(values.cpu().numpy())
+            return np.argmax(values)
 
         # select a random action wih probability epsilon
         if random.random() <= self.epsilon:
-            if self.positive_greedy and np.max(values.cpu().numpy()) > 0:
-                action = random.choice(np.where(values.numpy() > 0)[0])
+            if self.positive_greedy and np.max(values) > 0:
+                action = random.choice(np.where(values > 0)[0])
             else:
                 action = random.choice(valid_actions)
         else:
-            action = np.argmax(values.cpu().numpy())
+            action = np.argmax(values)
         return action
 
     def set_reward(self, state: torch.Tensor, action: int, value: float):
